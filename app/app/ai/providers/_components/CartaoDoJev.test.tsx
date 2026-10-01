@@ -1413,7 +1413,7 @@ describe("histórico específico do roteador", () => {
   it("histórico autorizado pode ser revogado mesmo com o Jev desligado", async () => {
     render(<CartaoDoJev dados={dados({ config: { ligado: false, contexto_roteador: { em: "2026-09-29T12:00:00Z", por: "admin", versao: 1 } } })} erro={null} recarregar={recarregar} />);
     expect(screen.getByTestId("jev-contexto-roteador")).toHaveTextContent("Histórico autorizado");
-    expect(screen.getByText(/conforme a autorização de histórico registrada separadamente/)).toBeVisible();
+    expect(screen.getByText(/A autorização antiga do roteador permite até quatro mensagens anteriores/)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Desativar histórico do roteador" }));
     await waitFor(() => expect(recarregar).toHaveBeenCalled());
     expect(chamadas[0]?.corpo).toEqual({ contexto_roteador: false });
@@ -1423,6 +1423,38 @@ describe("histórico específico do roteador", () => {
     render(<CartaoDoJev dados={dados({ config: { contexto_roteador: null }, pode_editar: false })} erro={null} recarregar={recarregar} />);
     expect(screen.getByTestId("jev-contexto-roteador")).toHaveTextContent("Histórico desativado");
     expect(screen.queryByRole("button", { name: "Usar histórico no roteador" })).toBeNull();
+  });
+});
+
+describe("modo independente do roteador", () => {
+  const comRoteador = (podeEditar = true) => dados({
+    config: { ligado: true, modo_roteador: "comparacao" }, pode_editar: podeEditar,
+    por_tarefa: [{ id: "roteador", ponto: "intent_router", rotulo: "Escolher qual agente atende",
+      oQueFaz: "Escolhe.", estado: "decidindo", novo: false }],
+  });
+
+  it("explica o modo independente no cartão e no seletor do modelo, sem afirmar cobrança paralela", () => {
+    const d = comRoteador();
+    d.config.modo_roteador = "sob_demanda";
+    montar(d);
+    expect(screen.getByTestId("jev-decide-roteador")).toHaveTextContent("A IA tradicional só entra em caso de falha");
+    expect(screen.getByTestId("jev-decide-roteador")).not.toHaveTextContent("nunca só o Jev");
+    expect(jevNoPonto(d, "intent_router")).toEqual({ decide: "O JEV escolhe primeiro. A IA tradicional só entra em caso de falha, baixa confiança ou intenção inválida." });
+  });
+
+  it("oferece comparar ou chamar a reserva sob demanda, e grava a escolha", async () => {
+    montar(comRoteador());
+    const modo = screen.getByLabelText("Como o roteador consulta as IAs");
+    expect(modo).toHaveValue("comparacao");
+    fireEvent.change(modo, { target: { value: "sob_demanda" } });
+    await waitFor(() => expect(chamadas.some((c) => c.metodo === "PATCH")).toBe(true));
+    expect(chamadas.find((c) => c.metodo === "PATCH")?.corpo).toEqual({ modo_roteador: "sob_demanda" });
+    expect(screen.getByRole("link", { name: "Ver resultados do roteamento" })).toHaveAttribute("href", "/app/ai/runs?tab=roteamento");
+  });
+
+  it("quem só consulta vê o modo, mas não o altera", () => {
+    montar(comRoteador(false));
+    expect(screen.getByLabelText("Como o roteador consulta as IAs")).toBeDisabled();
   });
 });
 
