@@ -37,16 +37,14 @@ import type { Idioma } from "./idiomas";
 type Traducoes = Record<string, Partial<Record<Exclude<Idioma, "pt-BR">, string>>>;
 
 export const DICIONARIO: Traducoes = {
-  "Criar minha conta": { es: "Crear mi cuenta", en: "Create my account" },
+  "Criar minha conta": { es: "Crear mi cuenta" },
   "Já tenho conta? Entrar": {
     es: "¿Ya tienes cuenta? Iniciar sesión",
-    en: "Already have an account? Sign in",
   },
-  "Use o e-mail": { es: "Usa el correo", en: "Use the email" },
+  "Use o e-mail": { es: "Usa el correo" },
   "para entrar na equipe que convidou você. Se ainda não tem conta, crie a sua. Se já tem, entre com ela.":
     {
       es: "para unirte al equipo que te invitó. Si todavía no tienes cuenta, crea una. Si ya tienes, inicia sesión con ella.",
-      en: "to join the team that invited you. If you do not have an account, create one. If you already have one, sign in with it.",
     },
   // Roteador JEV independente, consentimento ampliado e resultados.
   "Como o roteador consulta as IAs": { es: "Cómo consulta el enrutador a las IA" },
