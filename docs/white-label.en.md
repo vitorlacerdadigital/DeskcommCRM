@@ -1,4 +1,4 @@
-<!-- traduzido-de: docs/white-label.md@0c08d745dbc5 -->
+<!-- traduzido-de: docs/white-label.md@1e72ff849479 -->
 
 [🇧🇷 Português](white-label.md) · 🇺🇸 English · [🇪🇸 Español](white-label.es.md)
 
@@ -42,7 +42,7 @@ APP_ACCENT_HEX=#7a5cd6
 
 > The color is asked with a validator: only `#` + 6 digits gets through. That is narrower than what the screen accepts, and deliberately so — the **access e-mails** (account confirmation and password recovery) read this key from the `.env`, and they recognize that form only. A `#abc` or a `7a5cd6` would paint the interface with your color and leave the product's green in the first e-mail your client opens.
 
-> ⚠️ **Changing the color from the screen afterwards does NOT rewrite the access e-mails.** Their text lives inside Supabase (GoTrue), not in the CRM, and what pushes it there is `marca-emails.sh` — which reads the **`.env`**, not the database. For the e-mails to follow a color changed in `/admin/marca`: adjust `APP_ACCENT_HEX` in the `.env` as well and run `bash hostgator-setup-kit/marca-emails.sh`. This is why the installer interview matters: it is the only moment when both ends are born identical without anyone having to know about this.
+> **Supabase Cloud:** changes made on the branding screen must be reapplied to Auth templates. The `/email-templates/config` export reads the database; see [Email identity](runbooks/identidade-emails.md) for backup and read-back verification. Changing the color does not activate automatic synchronization. The legacy `marca-emails.sh` reads environment values and may produce a different color.
 
 What these variables are, exactly: **seed and rollback floor.**
 

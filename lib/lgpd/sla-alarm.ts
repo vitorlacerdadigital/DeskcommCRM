@@ -1,3 +1,4 @@
+import { estruturaDeEmail } from "@/lib/email/templates/estrutura";
 /**
  * LGPD SLA alarm dispatcher.
  *
@@ -140,10 +141,7 @@ export async function triggerSlaAlarm(
           ? `<p style="color:#dc2626;font-weight:600;">⚠ Esta solicitação está ${daysOverdue} dia(s) em atraso.</p>`
           : `<p>O prazo vence em <strong>${dueFmt}</strong>.</p>`;
 
-      const html = `<!doctype html>
-<html lang="pt-BR">
-<body style="font-family:-apple-system,Helvetica,Arial,sans-serif;color:${NEUTROS_DE_SAIDA.texto};line-height:1.5;max-width:560px;margin:0 auto;padding:24px;">
-  <h2 style="margin:0 0 12px;font-size:18px;">[LGPD] Alerta de SLA — Solicitação #${shortId}</h2>
+      const html = estruturaDeEmail(marca, `  <h2 style="margin:0 0 12px;font-size:18px;">[LGPD] Alerta de SLA — Solicitação #${shortId}</h2>
   <p>Olá,</p>
   <p>A solicitação LGPD <strong>#${shortId}</strong> de <strong>${orgName}</strong> atingiu o limiar <strong>${thresholdLabel}</strong>.</p>
   ${overdueNote}
@@ -152,8 +150,7 @@ export async function triggerSlaAlarm(
     <a href="${requestUrl}" style="background:${marca.accent};color:${marca.accentFg};padding:10px 18px;border-radius:6px;text-decoration:none;display:inline-block;">Ver solicitação no painel</a>
   </p>
   <p style="font-size:12px;color:${NEUTROS_DE_SAIDA.suave};">Base legal: LGPD Lei nº 13.709/2018, Art. 18. SLA obrigatório conforme regulamentação vigente.</p>
-</body>
-</html>`;
+`);
 
       // Texto puro não escapa: `&amp;` no corpo de um alarme é ruído.
       const text = `[LGPD] Alerta de SLA — Solicitação #${shortId}

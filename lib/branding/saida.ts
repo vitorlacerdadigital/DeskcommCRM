@@ -101,13 +101,13 @@ const ACCENT_DO_PRODUTO = stop(
  * disto cada template tinha a própria paleta cinza inventada (`#111827`,
  * `#6b7280`, `#1c1917`, `#57534e`, `#78716c` — cinco tons de dois sistemas
  * diferentes em três arquivos), e o corpo do e-mail não parecia o produto.
- * Os índices são os mesmos que `app/globals.css` usa para texto e texto suave.
+ * O rodapé usa um grau mais escuro para manter contraste de 4,5:1 no fundo do e-mail.
  */
 export const NEUTROS_DE_SAIDA = {
   /** Corpo do texto. */
   texto: stop(REGUA_DO_PRODUTO.claro.neutros, 9),
   /** Rodapé, legenda, aviso — o que não é a mensagem principal. */
-  suave: stop(REGUA_DO_PRODUTO.claro.neutros, 5),
+  suave: stop(REGUA_DO_PRODUTO.claro.neutros, 6),
   /** Fundo da página do e-mail. */
   fundo: stop(REGUA_DO_PRODUTO.claro.neutros, 0),
   /** Régua e borda. */

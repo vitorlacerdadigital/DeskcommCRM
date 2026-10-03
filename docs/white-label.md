@@ -40,7 +40,7 @@ O `install.sh` pergunta **duas** delas e as grava: o `APP_NAME` (Enter mantém o
 
 > A cor é pedida com validador: só `#` + 6 dígitos passa. É mais estreito do que a tela aceita, e de propósito — os **e-mails de acesso** (confirmação de conta e recuperação de senha) leem essa chave do `.env`, e eles só reconhecem essa forma. Um `#abc` ou um `7a5cd6` pintaria a interface com a sua cor e deixaria o verde do produto no primeiro e-mail que o seu cliente abre.
 
-> ⚠️ **Trocar a cor pela tela depois NÃO reescreve os e-mails de acesso.** O texto deles vive dentro do Supabase (GoTrue), não no CRM, e quem o empurra para lá é o `marca-emails.sh` — que lê o **`.env`**, não o banco. Para os e-mails acompanharem uma cor trocada em `/admin/marca`: ajuste também o `APP_ACCENT_HEX` no `.env` e rode `bash hostgator-setup-kit/marca-emails.sh`. É por isso que a entrevista do instalador importa: ela é o único momento em que as duas pontas nascem iguais sem ninguém precisar saber disso.
+> **Supabase Cloud:** a marca alterada pela tela precisa ser reaplicada aos modelos Auth. A exportação `/email-templates/config` lê o banco; o procedimento com backup e releitura está em [Identidade dos e-mails](runbooks/identidade-emails.md). Não há sincronização automática ativa por apenas trocar a cor. O script legado `marca-emails.sh` lê o ambiente e pode produzir cor divergente.
 
 O que essas variáveis são, exatamente: **semente e piso de rollback.**
 
