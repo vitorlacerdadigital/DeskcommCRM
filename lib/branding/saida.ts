@@ -174,16 +174,12 @@ async function settingsDaOrganizacao(organizationId: string): Promise<unknown> {
  * A CLASSE C (não leva marca nenhuma) não chama esta função: é o PDF de LGPD,
  * e o motivo está escrito em `lib/lgpd/pdf-renderer.tsx`.
  *
- * A leitura da instalação é memoizada por 30s (`instalacao.ts:209`) e a
- * invalidação da escrita alcança o MESMO processo — porque quem envia e-mail é
- * o app, via `event-log-drain`, e não o contêiner `worker` (medido:
- * `lib/event-log/register-handlers.ts:12` é importado só por
- * `app/api/v1/cron/event-log-drain/route.ts:21`; `Dockerfile.worker` roda
- * `workers/agent-worker/main.ts`, que não importa e-mail nenhum).
+ * Cada saída lê a marca do banco sem memo: mudanças feitas por outro processo
+ * também precisam aparecer no próximo envio. A fachada preserva seu cache.
  */
 export async function marcaDaSaida(organizationId: string | null): Promise<MarcaDeSaida> {
   try {
-    const linha = await marcaDaInstalacao();
+    const linha = await marcaDaInstalacao({ semMemo: true });
     const marca =
       organizationId === null
         ? resolverMarca([camadaDaInstalacao(linha), camadaDoAmbiente(env)], REGUA_DO_PRODUTO)
@@ -216,9 +212,13 @@ export async function marcaDaSaida(organizationId: string | null): Promise<Marca
       },
     };
   } catch (erro) {
-    avisarUmaVez("resolucao|excecao", "marca de saída: resolução falhou; vale o padrão do produto", {
-      detalhe: erro instanceof Error ? erro.message : String(erro),
-    });
+    avisarUmaVez(
+      "resolucao|excecao",
+      "marca de saída: resolução falhou; vale o padrão do produto",
+      {
+        detalhe: erro instanceof Error ? erro.message : String(erro),
+      },
+    );
     return padraoDoProduto();
   }
 }

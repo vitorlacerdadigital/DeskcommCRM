@@ -79,11 +79,16 @@ export function assuntoDoModelo(modelo: ModeloDeAcesso, marca: MarcaDeSaida): st
  * de `invite.ts` — inclusive a dimensão no atributo, que o Outlook desktop
  * exige porque descarta `height` de style em imagem.
  */
-export function montarTemplateDeAcesso(modelo: ModeloDeAcesso, marca: MarcaDeSaida): string {
+export function montarTemplateDeAcesso(
+  modelo: ModeloDeAcesso,
+  marca: MarcaDeSaida,
+  url?: string,
+): string {
   const t = COPIA[modelo];
 
   // As chaves duplas ficam CRUAS de propósito: o GoTrue as substitui.
-  const destino = "{{ .RedirectTo }}&token_hash={{ .TokenHash }}";
+  const destino =
+    url === undefined ? "{{ .RedirectTo }}&token_hash={{ .TokenHash }}" : escapeHtml(url);
 
   return estruturaDeEmail(
     marca,

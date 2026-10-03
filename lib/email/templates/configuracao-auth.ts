@@ -3,11 +3,18 @@ import { assuntoDoModelo, MODELOS_DE_ACESSO, montarTemplateDeAcesso } from "./ac
 import { escaparHtml, estruturaDeEmail } from "./estrutura";
 
 /** Apenas apresentação: não habilita notificações nem altera SMTP, URLs ou política Auth. */
-export function configuracaoDeEmailsAuth(marca: MarcaDeSaida): Record<string, string> {
+export function configuracaoDeEmailsAuth(
+  marca: MarcaDeSaida,
+  valores?: { url: string; token: string },
+): Record<string, string> {
   const config: Record<string, string> = {};
   for (const modelo of MODELOS_DE_ACESSO) {
     config[`mailer_subjects_${modelo}`] = assuntoDoModelo(modelo, marca);
-    config[`mailer_templates_${modelo}_content`] = montarTemplateDeAcesso(modelo, marca);
+    config[`mailer_templates_${modelo}_content`] = montarTemplateDeAcesso(
+      modelo,
+      marca,
+      valores?.url,
+    );
   }
   const outros = {
     invite: ["Você recebeu um convite", "Use o link abaixo para acessar sua conta.", "link"],
@@ -58,9 +65,9 @@ export function configuracaoDeEmailsAuth(marca: MarcaDeSaida): Record<string, st
     config[`mailer_subjects_${modelo}`] = `${titulo} · ${marca.nome}`;
     const acao =
       tipo === "codigo"
-        ? '<p style="font-size:24px;font-weight:bold">{{ .Token }}</p>'
+        ? `<p style="font-size:24px;font-weight:bold">${valores ? escaparHtml(valores.token) : "{{ .Token }}"}</p>`
         : tipo === "link"
-          ? `<p><a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 24px;background:${marca.accent};color:${marca.accentFg};text-decoration:none">Continuar</a></p>`
+          ? `<p><a href="${valores ? escaparHtml(valores.url) : "{{ .ConfirmationURL }}"}" style="display:inline-block;padding:12px 24px;background:${marca.accent};color:${marca.accentFg};text-decoration:none">Continuar</a></p>`
           : "";
     config[`mailer_templates_${modelo}_content`] = estruturaDeEmail(
       marca,
