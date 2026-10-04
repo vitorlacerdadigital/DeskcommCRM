@@ -1,3 +1,4 @@
+-- manifest: Registra decisões do roteador Jev por mensagem, com contexto, custos e revisão humana sem texto de conversa; isola leitura por organização e inclui decisões na retenção diária.
 -- Uma decisão por mensagem do roteador, sem conteúdo da conversa. Mantém a
 -- distinção entre comparação integral e reserva acionada sob demanda.
 alter table public.jev_observacoes add column if not exists intencao_jev text;
