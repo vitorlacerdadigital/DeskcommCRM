@@ -44763,7 +44763,7 @@ create trigger trg_starts_at_marked_at
   before update of starts_at on public.calendar_appointments
   for each row execute function public.fn_starts_at_marked_at();
 
--- ---- decisões do roteador Jev (migration 0543) ----
+-- ---- decisões do roteador Jev (migration 0544) ----
 -- Uma decisão por mensagem do roteador, sem conteúdo da conversa. Mantém a
 -- distinção entre comparação integral e reserva acionada sob demanda.
 alter table public.jev_observacoes add column if not exists intencao_jev text;
