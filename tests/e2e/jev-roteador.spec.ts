@@ -368,20 +368,20 @@ test.describe("Jev no roteador — Testar classificação, pela tela", () => {
       expect(custos).toBeGreaterThanOrEqual(1);
     });
 
-    await test.step("o roteador legado começa com quatro mensagens e aceita oito pela tela", async () => {
+    await test.step("o roteador sem limite salvo começa com oito e aceita até dezesseis pela tela", async () => {
       await page.goto(`/app/ai/routers/${semeado.roteador}`);
       const campo = page.getByLabel("Mensagens anteriores para o roteamento");
-      await expect(campo).toHaveValue("4");
-      await campo.fill("8");
+      await expect(campo).toHaveValue("8");
+      await campo.fill("16");
       await page.getByRole("button", { name: "Salvar", exact: true }).click();
       await expect(async () => {
         const r = await page.request.get(`/api/v1/ai/routers/${semeado.roteador}`);
         expect(r.status()).toBe(200);
         const j = await r.json() as { data: { router: { config: { context_message_count: number } } } };
-        expect(j.data.router.config.context_message_count).toBe(8);
+        expect(j.data.router.config.context_message_count).toBe(16);
       }).toPass();
       await page.reload();
-      await expect(campo).toHaveValue("8");
+      await expect(campo).toHaveValue("16");
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({ path: test.info().outputPath("jev-roteador-contexto.png"), fullPage: true });
     });
