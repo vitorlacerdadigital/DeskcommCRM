@@ -1,0 +1,51 @@
+{
+  "official_base": {
+    "version": "v1.75.0",
+    "commit": "0727fca64c69e38f2eaf82ff2c41e5559f37819e"
+  },
+  "repository": "https://github.com/vitorlacerdadigital/DeskcommCRM",
+  "branch": "custom/shared-v175-gemini35",
+  "revision": "6e86e07f3e1f1dff410cfcfeccf70c69e582352b",
+  "build_url": "https://github.com/vitorlacerdadigital/DeskcommCRM/actions/runs/37548233172",
+  "images": {
+    "app": "ghcr.io/vitorlacerdadigital/deskcommcrm-branding@sha256:c9030b4ab4647900c24ea2ec2ec7fefa2f0877563194dbe04de9753658524224",
+    "worker": "ghcr.io/vitorlacerdadigital/deskcomm-worker-branding@sha256:d83cc157e0626d94454c9bbba7392fd2fcdc54582c9c5823284ab8239ec47199",
+    "scheduler": "ghcr.io/vitorlacerdadigital/deskcomm-scheduler-branding@sha256:e1f13bfa7d7954cf77c98df4f5890f1f6ef12915ffb37d2e333a64e5df407157"
+  },
+  "convert_validation": {
+    "deployed": true,
+    "validated_at_utc": "2026-10-06T23:56:13.639803+00:00",
+    "all_three_services_healthy": true,
+    "existing_agents_and_versions_preserved": true,
+    "existing_configuration_and_credentials_preserved": true,
+    "no_count_reduction_in_checked_tables": true,
+    "official_defaults_added_where_absent": [
+      "settings.canonical_conversation_tags",
+      "settings.proposals"
+    ],
+    "agents_published_or_activated_by_this_task": false
+  },
+  "verification": {
+    "typecheck": "passed",
+    "eslint_errors": 0,
+    "eslint_existing_warnings": 503,
+    "channels": "passed",
+    "role_rank": "passed",
+    "self_host_shell_tests": "passed",
+    "db_catalog_tests_passed": 8,
+    "db_jev_rls_hardening_tests_passed": 106,
+    "baseline_install_and_reapply": "passed",
+    "update_with_existing_data": "10 rows and 8 object identities preserved",
+    "unit_full_run": {
+      "files": 1929,
+      "cases": 20155,
+      "passed": 20153,
+      "expected_failure": 1,
+      "load_timeout": 1,
+      "timeout_file_isolated_recheck": "6/6 passed"
+    },
+    "browser_e2e": "17/17 passed on final images",
+    "gemini_google_selector": "passed on final app image, form not saved",
+    "public_branding_and_invite_flow": "passed without submission or external sends"
+  }
+}
