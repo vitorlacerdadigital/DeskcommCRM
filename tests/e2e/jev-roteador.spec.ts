@@ -411,7 +411,7 @@ test.describe("Jev no roteador — Testar classificação, pela tela", () => {
       expect((await previa.json()).data.ia_consultada).toBe(false);
       await expect(page.getByTestId("teste-agente-que-atenderia")).toContainText(`Suporte Jev ${sufixo}`);
       await expect(page.getByTestId("teste-escolha-da-ia")).toContainText("Não foi necessário consultar");
-      await expect(page.getByTestId("teste-quem-decide")).toContainText("O JEV decidiu sozinho");
+      await expect(page.getByTestId("teste-quem-decide")).toContainText("O Jev decidiu sozinho");
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({ path: test.info().outputPath("jev-roteador-contexto.png"), fullPage: true });
       await abrirOCartao(page);

@@ -310,7 +310,7 @@
       "col": 2,
       "type": "external",
       "label": "Jev no roteador",
-      "sublabel": "lib/ai/decisao/roteador.ts — a mesma escolha, só a última mensagem, em paralelo ao classificador; observando o turno não espera; decidindo vale a dele (min_confidence sobre a probabilidade), com a IA de sempre de reserva; sem ela, nunca o Jev (R2)"
+      "sublabel": "lib/ai/decisao/roteador.ts — a mensagem atual e, com aceite separado e revogável, o contexto recente; comparação paralela ou Jev primeiro com a IA de sempre só em reserva, e só onde a empresa a tem (R2); min_confidence e sticky preservados"
     },
     {
       "id": "jevObservacoesRoteador",
@@ -326,7 +326,7 @@
       "col": 4,
       "type": "frontend",
       "label": "Cartão do Jev (/app/ai/providers)",
-      "sublabel": "'Escolher qual agente atende': concordou em X de Y (30 dias); 'Não roda' sem roteador ativo; 'Deixar o Jev decidir' por tarefa"
+      "sublabel": "'Escolher qual agente atende': concordou em X de Y (30 dias); modo comparação ou sob demanda quando decide; link para resultados"
     },
     {
       "id": "jevDecisoesRoteador",
@@ -781,14 +781,8 @@
       "id": "cartao-jevroteador",
       "from": "jevCartaoRoteador",
       "to": "jevRoteador",
-      "label": "Deixar o Jev decidir / Pausar esta tarefa (settings.jev.tarefas.roteador)",
+      "label": "Deixar o Jev decidir / Pausar; comparação ou sob demanda (settings.jev.modo_roteador), só com a IA de sempre",
       "variant": "emphasis"
-    },
-    {
-      "id": "evidencias-comerciais-gates",
-      "from": "turn",
-      "to": "gates",
-      "label": "Catálogo/acervo consultados no turno → contexto limitado da promessa semântica; sem bypass"
     },
     {
       "id": "turn-jevdecisoesroteador",
@@ -808,6 +802,12 @@
       "to": "jevCartaoRoteador",
       "label": "resultado permite escolher o modo e rever o comportamento",
       "variant": "dashed"
+    },
+    {
+      "id": "evidencias-comerciais-gates",
+      "from": "turn",
+      "to": "gates",
+      "label": "Catálogo/acervo consultados no turno → contexto limitado da promessa semântica; sem bypass"
     }
   ],
   "cards": [

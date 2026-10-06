@@ -65,6 +65,7 @@ import type { DependenciasDoPonto } from '@/lib/ai/decisao/ponto';
 
 import type { Logger } from '../obs/logger';
 import type { LlmEdgeConfig } from '../edge/llm/run-model-call';
+import { temIaDeSempre } from '../edge/llm/credentials';
 import { agenteDaCampanhaDaConversa } from './agente-da-campanha';
 import { registrarDecisaoDoRoteador } from './router-decision-log';
 import { loadActiveRouter, type LoadedRouter, type RouterMember } from './router-config';
@@ -98,6 +99,14 @@ export interface TurnAgentResolution {
    * — fallback/sem-router NÃO começam fluxo.
    */
   flowPointerId?: string | null;
+  /**
+   * Funil/etapa de DESTINO da intenção casada (#2155). Valem também em sticky:
+   * o card é levado ao funil do produto na PRIMEIRA mensagem e fica lá — a
+   * transferência idempotente (`ja_no_destino`) não reprocessa os seguintes.
+   * `null`/ausente = sem destino configurado, nada muda.
+   */
+  destinationPipelineId?: string | null;
+  destinationStageId?: string | null;
 }
 
 export interface ResolveTurnAgentDeps {
@@ -113,6 +122,8 @@ export interface ResolveTurnAgentDeps {
   /** Chave e `fetch` do Jev — dublês só no teste. Default: a chave da organização e o egress com allowlist. */
   jev?: DependenciasDoPonto;
   registrarDecisao?: typeof registrarDecisaoDoRoteador;
+  /** Default: a mesma resolução de chave que a IA de sempre faz antes de sair. */
+  temIaDeSempre?: typeof temIaDeSempre;
 }
 
 /**
@@ -319,6 +330,8 @@ export async function resolveTurnAgent(
         // conversa em curso: devolvê-lo recomeçaria o roteiro a cada turno — e,
         // depois de concluído, de novo, para sempre.
         flowPointerId: outcome === 'sticky' ? null : (member.flowPointerId ?? null),
+        destinationPipelineId: member.destinationPipelineId ?? null,
+        destinationStageId: member.destinationStageId ?? null,
       };
     };
 
@@ -355,7 +368,7 @@ export async function resolveTurnAgent(
       deps.jev,
     );
 
-    // Em comparação, a classificação convencional começa em paralelo com o Jev.
+    // Em comparação, a classificação da IA de sempre começa em paralelo com o Jev.
     // Sob demanda, só há esta chamada se o Jev não trouxer intenção confiável.
     const modo = await (jev.modo ?? Promise.resolve('comparacao'));
     const estadoLido = await jev.estado;
@@ -367,7 +380,13 @@ export async function resolveTurnAgent(
       { tenantId: input.tenantId, leadId: input.leadId, jobId: input.jobId, router, signal: input.signal!, recentMessages: contextoTradicional },
       { log: deps.log },
     );
-    const independente = modo === 'sob_demanda' && estadoLido === 'decidindo';
+    // Decisão B (doc 89): o Jev só roteia sozinho onde a empresa tem a IA de
+    // sempre, a reserva dele. Sem ela, vale a regra de hoje (R2): comparação,
+    // e a escolha do Jev só vale com a IA de sempre tendo respondido. A pergunta
+    // é feita aqui, por roteador e com o provedor dele, porque a chave pode sumir
+    // depois de o modo ser escolhido na tela.
+    const independente = modo === 'sob_demanda' && estadoLido === 'decidindo' &&
+      await (deps.temIaDeSempre ?? temIaDeSempre)(db, llmCfg, input.tenantId, router.classifierProvider);
     const comparacao = independente ? null : classificar();
     const escolhaIndependente = independente ? await jev.escolha : null;
     const jevConfiavel = vereditoConfiavelDoRoteador(router, escolhaIndependente?.veredito ?? null);

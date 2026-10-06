@@ -14,8 +14,8 @@
  */
 import type pg from 'pg';
 
-import { contextoDoClassificador, type ClassifierContextMessage } from '@/lib/ai/classifier-context';
 import { extrairObjetoJsonDoTexto } from '@/lib/agent-engine/texto/extrair-json-do-texto';
+import { contextoDoClassificador, type ClassifierContextMessage } from '@/lib/ai/classifier-context';
 
 import type { Logger } from '../obs/logger';
 import { runModelCall, type LlmEdgeConfig } from '../edge/llm/run-model-call';

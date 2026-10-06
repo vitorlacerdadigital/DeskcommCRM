@@ -193,7 +193,13 @@ export const TAREFA_DA_MANIPULACAO = {
  * nunca o Jev (R2). Só roda onde há um roteador ativo: sem ele o turno não
  * classifica nada (`tarefaSemRoteador`).
  */
-export const ROTEADOR_SOB_DEMANDA = "O JEV escolhe primeiro. A IA tradicional só entra em caso de falha, baixa confiança ou intenção inválida.";
+export const ROTEADOR_SOB_DEMANDA = "O Jev escolhe primeiro. A IA de sempre só entra em caso de falha, baixa confiança ou intenção inválida.";
+/**
+ * Por que o Jev não roteia sozinho nesta empresa (decisão B do doc 89, R2 do
+ * DEC-012): a mesma frase na recusa do PATCH e no cartão.
+ */
+export const ROTEADOR_SOB_DEMANDA_SEM_IA =
+  "Sem a sua IA de sempre, o Jev não escolhe o agente sozinho: é ela que cobre quando ele falha ou fica em dúvida. Cadastre uma chave de IA em Agentes IA › Credenciais para usar este modo. Até lá, vale a comparação.";
 
 export const TAREFA_DO_ROTEADOR = {
   id: "roteador",
@@ -219,7 +225,7 @@ export const TAREFA_DO_ROTEADOR = {
   },
   rotulo: "Escolher qual agente atende",
   oQueFaz:
-    "Lê a mensagem atual do cliente e escolhe qual agente deve atender. Com autorização específica, usa também o contexto recente da conversa.",
+    "Lê a última mensagem do cliente, sozinha, e escolhe entre as intenções do seu roteador qual agente deve atender.",
 } as const satisfies TarefaDoJev;
 
 /**

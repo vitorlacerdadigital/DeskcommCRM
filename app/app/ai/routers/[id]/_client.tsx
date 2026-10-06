@@ -1,4 +1,6 @@
 "use client";
+
+import { CLASSIFIER_CONTEXT_MESSAGES } from "@/lib/ai/classifier-context";
 import * as React from "react";
 import Link from "next/link";
 import { useRouter as useNextRouter } from "next/navigation";
@@ -45,6 +47,8 @@ import {
 import type { ClassifierModelOption } from "@/lib/ai/classifier-models";
 import type { ChannelSessionLite } from "../../agents/[id]/_components/AgentForm";
 import { useFollowupFlows } from "@/hooks/followup/useFollowupFlows";
+// #2155 — funil/etapa de DESTINO da intenção: o card vai para o funil do produto.
+import { usePipelines, usePipelineStages } from "@/hooks/webhooks/useWebhookSources";
 import { useT } from "@/hooks/i18n/useT";
 
 interface AgentLite {
@@ -108,7 +112,7 @@ export function RouterEditorClient({
   // manda o id para o provedor da ORG, e a classificação falha sempre.
   const [classifier, setClassifier] = React.useState(() => classifierKeyFrom(router.config));
   const [contextMessageCount, setContextMessageCount] = React.useState(() =>
-    typeof router.config?.context_message_count === "number" ? router.config.context_message_count : 4);
+    typeof router.config?.context_message_count === "number" ? router.config.context_message_count : CLASSIFIER_CONTEXT_MESSAGES);
   const [draftMembers, setDraftMembers] = React.useState<DraftMember[]>(() =>
     members.map((m) => ({ ...m, key: m.id })),
   );
@@ -132,25 +136,29 @@ export function RouterEditorClient({
       isActive: router.is_active,
       fallbackAgentId: router.fallback_agent_id ?? "",
       classifier: classifierKeyFrom(router.config),
-      contextMessageCount: typeof router.config?.context_message_count === "number" ? router.config.context_message_count : 4,
-      members: members.map(({ agent_id, intent_name, intent_description, examples, flow_pointer_id }) => ({
+      contextMessageCount: typeof router.config?.context_message_count === "number" ? router.config.context_message_count : CLASSIFIER_CONTEXT_MESSAGES,
+      members: members.map(({ agent_id, intent_name, intent_description, examples, flow_pointer_id, pipeline_id, stage_id }) => ({
         agent_id,
         intent_name,
         intent_description,
         examples,
         flow_pointer_id: flow_pointer_id ?? null,
+        pipeline_id: pipeline_id ?? null,
+        stage_id: stage_id ?? null,
       })),
     }),
     [router, members],
   );
 
   const currentMembers = draftMembers.map(
-    ({ agent_id, intent_name, intent_description, examples, flow_pointer_id }) => ({
+    ({ agent_id, intent_name, intent_description, examples, flow_pointer_id, pipeline_id, stage_id }) => ({
       agent_id,
       intent_name,
       intent_description,
       examples,
       flow_pointer_id: flow_pointer_id ?? null,
+      pipeline_id: pipeline_id ?? null,
+      stage_id: stage_id ?? null,
     }),
   );
 
@@ -195,6 +203,8 @@ export function RouterEditorClient({
         intent_description: "",
         examples: [],
         flow_pointer_id: null,
+        pipeline_id: null,
+        stage_id: null,
       },
     ]);
   }
@@ -478,6 +488,80 @@ export function RouterEditorClient({
   );
 }
 
+
+/**
+ * #2155 — para onde o CARD vai quando a intenção casa. Sem destino, o agente é
+ * escolhido e o negócio fica no funil de entrada (o defeito da issue): o agente
+ * do produto não escreve num funil que não é o dele. `pipeline_id` sozinho vale —
+ * a etapa vira a primeira aberta do funil.
+ */
+function DestinoDoCard({
+  pipelineId,
+  stageId,
+  disabled,
+  onChange,
+}: {
+  pipelineId: string | null;
+  stageId: string | null;
+  disabled: boolean;
+  onChange: (patch: Partial<DraftMember>) => void;
+}) {
+  const t = useT();
+  const { data: pipelinesRes } = usePipelines();
+  const pipelines = pipelinesRes?.data ?? [];
+  const { data: boardRes } = usePipelineStages(pipelineId);
+  const stages = boardRes?.data?.stages ?? [];
+  return (
+    <div className="flex flex-wrap items-end gap-2" data-testid="seletor-de-destino">
+      <div className="min-w-48 flex-1 space-y-1">
+        <Label>{t("Funil de destino (opcional)")}</Label>
+        <Select
+          value={pipelineId ?? NONE}
+          onValueChange={(v) =>
+            // trocar de funil invalida a etapa: ela não pertence ao funil novo.
+            onChange(v === NONE ? { pipeline_id: null, stage_id: null } : { pipeline_id: v, stage_id: null })
+          }
+          disabled={disabled}
+        >
+          <SelectTrigger aria-label={t("Funil de destino (opcional)")}>
+            <SelectValue placeholder={t("Sem destino — só escolher o agente")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NONE}>{t("Sem destino — só escolher o agente")}</SelectItem>
+            {pipelines.map((pl) => (
+              <SelectItem key={pl.id} value={pl.id}>
+                {pl.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {pipelineId !== null && stages.length > 0 && (
+        <div className="min-w-40 flex-1 space-y-1">
+          <Label>{t("Etapa de destino")}</Label>
+          <Select
+            value={stageId ?? AUTO}
+            onValueChange={(v) => onChange({ stage_id: v === AUTO ? null : v })}
+            disabled={disabled}
+          >
+            <SelectTrigger aria-label={t("Etapa de destino")}>
+              <SelectValue placeholder={t("Primeira etapa aberta")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={AUTO}>{t("Primeira etapa aberta")}</SelectItem>
+              {stages.map((st) => (
+                <SelectItem key={st.id} value={st.id}>
+                  {st.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function IntentRow({
   member,
   agents,
@@ -580,6 +664,12 @@ function IntentRow({
         </p>
       </div>
       )}
+      <DestinoDoCard
+        pipelineId={member.pipeline_id ?? null}
+        stageId={member.stage_id ?? null}
+        disabled={disabled}
+        onChange={onChange}
+      />
       <ExamplesInput
         value={member.examples}
         onChange={(examples) => onChange({ examples })}
@@ -798,7 +888,7 @@ function EscolhasLadoALado({
       <div className="rounded-md border border-border/60 p-3 text-sm" data-testid="teste-escolha-da-ia">
         <p className="text-xs text-muted-foreground">{t("Sua IA escolheu")}</p>
         <p className="font-medium">
-          {result.ia_consultada === false ? t("Não foi necessário consultar a IA tradicional.") : result.confidence === null ? t("não respondeu") : (result.agent_name ?? t("nenhum (sem fallback)"))}
+          {result.ia_consultada === false ? t("Não foi necessário consultar a IA de sempre.") : result.confidence === null ? t("não respondeu") : (result.agent_name ?? t("nenhum (sem fallback)"))}
         </p>
         {result.confidence !== null && (
           <p className="text-xs text-muted-foreground">
@@ -829,8 +919,8 @@ function EscolhasLadoALado({
       <p className="text-xs text-muted-foreground sm:col-span-2" data-testid="teste-quem-decide">
         {result.modo_roteador === "sob_demanda" && jev.estado === "decidindo"
           ? jev.decide
-            ? t("O JEV decidiu sozinho; a IA tradicional não foi chamada.")
-            : t("O JEV precisou de reserva. A IA tradicional foi consultada; sem resposta válida, valem as regras de fallback do roteador.")
+            ? t("O Jev decidiu sozinho; a IA de sempre não foi chamada.")
+            : t("O Jev precisou de reserva. A IA de sempre foi consultada; sem resposta válida, valem as regras de fallback do roteador.")
           : jev.decide
           ? t("O Jev decide esta tarefa: em produção, vale a escolha dele, e a sua IA fica de reserva.")
           : jev.estado === "observando"

@@ -26,8 +26,8 @@ limitado por `context_message_count` do roteador (`lib/ai/classifier-context.ts`
 
 `resolveConversationTurn` lê até 16 mensagens da mesma organização e conversa, exclui a
 mensagem atual e entrega o recorte configurado, do mais antigo ao mais recente, aos dois
-classificadores quando ambos são chamados. Roteadores já existentes continuam com quatro
-mensagens anteriores; roteadores novos começam com oito. O administrador pode escolher de
+classificadores quando ambos são chamados. Sem limite explicitamente salvo, o padrão é
+oito mensagens anteriores; limites já escolhidos pelo administrador são preservados. O administrador pode escolher de
 zero a 16 no editor. `consultarJevNoRoteador` lê estado e aceite em uma única consulta.
 Com aceite V1, a janela comum de comparação fica em quatro até a autorização ser ampliada;
 sem aceite, a IA convencional usa o limite configurado e o Jev recebe só a mensagem atual.

@@ -18,12 +18,20 @@ import { consultarJevNoRoteador, registrarRoteadorDoJev, type EscolhaDoJev } fro
  *    ai_router_decisions (telemetria de decisão real, não de teste).
  */
 
+import type * as Credenciais from "@/lib/agent-engine/edge/llm/credentials";
+
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/ai/skills/db", () => ({ getSkillsPool: vi.fn(() => ({})) }));
 vi.mock("@/lib/agent-engine/agent/router-config", () => ({ loadActiveRouter: vi.fn() }));
 vi.mock("@/lib/agent-engine/agent/intent-classifier", () => ({ classifyIntent: vi.fn() }));
 vi.mock("@/lib/env", () => ({ env: { ANTHROPIC_API_KEY: "test-key" } }));
+// A pergunta "a empresa tem a IA de sempre?" (decisão B, doc 89). Padrão: tem.
+const { temIaDeSempre } = vi.hoisted(() => ({ temIaDeSempre: vi.fn(async () => true) }));
+vi.mock("@/lib/agent-engine/edge/llm/credentials", async (original) => ({
+  ...(await original<typeof Credenciais>()),
+  temIaDeSempre,
+}));
 vi.mock("@/lib/ai/decisao/roteador", () => ({
   consultarJevNoRoteador: vi.fn(),
   registrarRoteadorDoJev: vi.fn(async () => undefined),
@@ -371,7 +379,7 @@ describe("POST /api/v1/ai/routers/:id/test", () => {
       expect(d.jev).toMatchObject({ estado: "decidindo", agent_id: SUPORTE, decide: true });
     });
 
-    it("sob demanda: Jev confiável decide sem chamar nem cobrar a IA tradicional", async () => {
+    it("sob demanda: Jev confiável decide sem chamar nem cobrar a IA de sempre", async () => {
       roteadorComDoisMembros();
       jevCom("decidindo", escolhaDoJev("suporte", 0.91, "decidindo"), "sob_demanda");
       const d = await testar();
@@ -391,6 +399,17 @@ describe("POST /api/v1/ai/routers/:id/test", () => {
         expect(d.jev).toMatchObject({ decide: false });
       },
     );
+
+    it("sob demanda numa empresa sem a IA de sempre (decisão B): a prévia compara, e sem ela o Jev não decide", async () => {
+      roteadorComDoisMembros();
+      temIaDeSempre.mockResolvedValueOnce(false);
+      vi.mocked(classifyIntent).mockResolvedValue(null as never);
+      jevCom("decidindo", escolhaDoJev("suporte", 0.99, "decidindo"), "sob_demanda");
+      const d = await testar();
+      expect(classifyIntent).toHaveBeenCalledOnce();
+      expect(d).toMatchObject({ ia_consultada: true });
+      expect(d.jev).toMatchObject({ decide: false });
+    });
 
     it("decidindo, sem a sua IA (R2): vale a regra de sempre, nunca só o Jev", async () => {
       roteadorComDoisMembros();

@@ -6,9 +6,11 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { authMock, flowsMock, testeMock, updateMock } = vi.hoisted(() => ({
+const { authMock, flowsMock, testeMock, updateMock, pipelinesMock, stagesMock } = vi.hoisted(() => ({
   authMock: vi.fn(),
   flowsMock: vi.fn(),
+  pipelinesMock: vi.fn(() => ({ data: undefined })),
+  stagesMock: vi.fn(() => ({ data: undefined })),
   testeMock: vi.fn(() => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false, data: undefined as unknown })),
   updateMock: vi.fn(async () => ({})),
 }));
@@ -17,6 +19,12 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: 
 vi.mock("@/hooks/auth/AuthProvider", () => ({ useAuth: authMock, usePermission: () => true }));
 vi.mock("@/hooks/i18n/useT", () => ({ useT: () => (s: string) => s }));
 vi.mock("@/hooks/followup/useFollowupFlows", () => ({ useFollowupFlows: flowsMock }));
+// #2155 — o seletor de funil/etapa de destino usa os MESMOS hooks dos webhooks:
+// sem o mock, a renderização estoura "No QueryClient set" (não há provider aqui).
+vi.mock("@/hooks/webhooks/useWebhookSources", () => ({
+  usePipelines: pipelinesMock,
+  usePipelineStages: stagesMock,
+}));
 vi.mock("@/hooks/ai/useRouters", () => {
   const mut = () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false });
   return {
@@ -84,16 +92,16 @@ describe("seletor de roteiro na intenção × módulo", () => {
 });
 
 describe("tamanho do contexto do roteador", () => {
-  it("roteador legado mostra quatro mensagens e salva oito quando o admin escolhe", async () => {
+  it("roteador sem limite salvo mostra oito mensagens e salva até dezesseis pelo painel", async () => {
     authMock.mockReturnValue({ activeOrg: { modulos_ligados: [] } });
     flowsMock.mockReturnValue({ data: undefined });
     updateMock.mockClear();
     renderizar();
     const campo = screen.getByLabelText("Mensagens anteriores para o roteamento");
-    expect(campo).toHaveValue(4);
-    fireEvent.change(campo, { target: { value: "8" } });
+    expect(campo).toHaveValue(8);
+    fireEvent.change(campo, { target: { value: "16" } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
-    expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ config: expect.objectContaining({ context_message_count: 8 }) }));
+    expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ config: expect.objectContaining({ context_message_count: 16 }) }));
   });
 });
 
@@ -147,13 +155,13 @@ describe("Testar classificação com o Jev (onda 2 do Jev, bloco 2.2)", () => {
   it("sob demanda distingue a reserva dispensada de falha de resposta", () => {
     comResultado({ ...RESULTADO, confidence: null, ia_consultada: false, modo_roteador: "sob_demanda", jev: { ...DO_JEV, estado: "decidindo", decide: true } });
     expect(screen.getByTestId("teste-escolha-da-ia").textContent).toContain("Não foi necessário consultar");
-    expect(screen.getByTestId("teste-quem-decide").textContent).toContain("O JEV decidiu sozinho");
+    expect(screen.getByTestId("teste-quem-decide").textContent).toContain("O Jev decidiu sozinho");
     expect(screen.getByTestId("teste-agente-que-atenderia").textContent).toBe("Agente Suporte");
   });
 
   it("sob demanda explica reserva por baixa confiança mesmo quando Jev respondeu", () => {
     comResultado({ ...RESULTADO, ia_consultada: true, modo_roteador: "sob_demanda", jev: { ...DO_JEV, confidence: 0.3, estado: "decidindo", decide: false } });
-    expect(screen.getByTestId("teste-quem-decide").textContent).toContain("O JEV precisou de reserva");
+    expect(screen.getByTestId("teste-quem-decide").textContent).toContain("O Jev precisou de reserva");
     expect(screen.getByTestId("teste-agente-que-atenderia").textContent).toBe("Agente Financiamento");
   });
 
