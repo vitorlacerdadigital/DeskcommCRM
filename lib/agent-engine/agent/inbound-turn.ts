@@ -184,7 +184,8 @@ import { instrucaoDeBolhas, sendInBubbles, splitForSend } from './split-message'
 import type { DisclosureMode } from '../guardrails/disclosure/template';
 import { decidePromise } from '../guardrails/promise/engine';
 import { loadPromiseTable } from '../guardrails/promise/table';
-import { criarEvidenciasComerciaisDoTurno } from '../guardrails/promise/evidencias-comerciais';
+import { carregarFontesQueProvamOferta, criarEvidenciasComerciaisDoTurno } from '../guardrails/promise/evidencias-comerciais';
+import { criarRecuperadorDeEvidencias } from '../guardrails/promise/recuperar-evidencias';
 import { classifyPromise } from '../guardrails/promise/semantic';
 import { expectativaDeAtendimento } from '@/lib/escalacao/disponibilidade';
 import {
@@ -2579,7 +2580,16 @@ async function executarTurnoDoAgente(
   // correlacionar tentativa de promessa fora de tabela com o sinal de jailbreak — a
   // detecção NÃO depende do gate estar na cadeia default (a ordem final é da F4-08).
   const promiseTable = (await loadPromiseTable(pool, tenantId))?.table ?? null;
-  const evidenciasComerciais = criarEvidenciasComerciaisDoTurno(agentConfig?.knowledgeSourceIds ?? []);
+  const fontesQueProvamOferta = await carregarFontesQueProvamOferta(
+    pool, tenantId, agentConfig?.knowledgeSourceIds ?? [],
+  ).catch((err) => {
+    runLog.warn('fontes comerciais não puderam ser verificadas', { error: err instanceof Error ? err.message : String(err) });
+    return [];
+  });
+  const evidenciasComerciais = criarEvidenciasComerciaisDoTurno(fontesQueProvamOferta);
+  const recuperarEvidencias = criarRecuperadorDeEvidencias(pool, {
+    tenantId, fontes: fontesQueProvamOferta, registrar: evidenciasComerciais.registrarConhecimento, log: runLog,
+  });
   // Gate 5 da cadeia (F4-02/F4-08): closure do classificador semântico com tenant/lead/job da
   // ROW do job fechados dentro (regra dura nº 1) — resolvido pelo seam agnóstico. undefined =
   // camada off (gate no-op). CUSTO: uma chamada de modelo POR ENVIO quando ligada.
@@ -2587,18 +2597,20 @@ async function executarTurnoDoAgente(
     camadas.promessa_semantica,
     deps.knobs.promiseSemantic?.enabled === true,
   )
-    ? (candidate: string) =>
-        classifyPromise(
+    ? async (candidate: string) => {
+        await recuperarEvidencias(candidate);
+        return classifyPromise(
           pool,
           deps.llmCfg,
           { tenantId, leadId: leadId || null, jobId: job?.id },
           {
             candidate,
-            commercialEvidence: evidenciasComerciais.ler(),
+            commercialEvidence: evidenciasComerciais.ler(candidate),
             ...argsAux(deps.knobs.promiseSemantic?.model),
           },
           { ...(deps.registry !== undefined ? { registry: deps.registry } : {}), log: runLog },
-        )
+        );
+      }
     : undefined;
   let outOfTablePromiseAttempted = false;
   // Spec 15 (Wave 4 lê este flag): true quando open_human_case abriu um caso NESTE
