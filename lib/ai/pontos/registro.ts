@@ -463,6 +463,19 @@ export const PONTOS_DE_IA: readonly PontoDeIa[] = [
   },
 
   {
+    id: "human_return_confirmation",
+    rotulo: "Confirmar compromisso de retorno humano",
+    oQueFaz:
+      "Segunda opinião somente quando a revisão marcou retorno ou ação humana. Distingue convite, avaliação durante o serviço e pedido ao cliente de um compromisso real. Só atua com escolha explícita habilitada neste ponto; sem ela, vale a revisão anterior. Não altera a decisão comercial.",
+    papel: "proteger",
+    exige: {},
+    emissor: "lib/agent-engine/guardrails/promise/semantic.ts",
+    sintomaDeFalha:
+      "A marcação da primeira revisão é preservada; descrições de serviço podem continuar exigindo um caso indevidamente. A falha da segunda opinião aparece nas Execuções.",
+    registraEm: "llm_calls",
+  },
+
+  {
     // A conferência de fato (#2231): o ponto é dela (o Jev responde por aqui, e
     // a credencial é a que resolve), não uma IA de sempre reservada — quem
     // decide é só o Jev, e sem resposta a frase segue como está (fail-open).

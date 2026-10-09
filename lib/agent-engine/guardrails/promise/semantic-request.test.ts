@@ -31,6 +31,8 @@ describe("contexto via seam do revisor, sem confundi-lo com fonte comercial", ()
     const request = seam.call.mock.calls[0]?.[2];
     if (!request) throw new Error("O seam não foi chamado");
     expect(request.messages[0].content).toContain("Bom dia.");
-    expect(request.messages[0].content).not.toContain("contexto_conversa");
+    // A instrução pode mencionar histórico; isto verifica o campo de dados
+    // omitido no contrato legado, não uma palavra na orientação do revisor.
+    expect(request.messages[0].content).not.toContain('"contexto_conversa":');
   });
 });
