@@ -1,0 +1,58 @@
+{
+  "status": "validated_candidate_not_deployed",
+  "official_base": {
+    "version": "v1.78.0",
+    "commit": "43af50116b0cc7712718e203d4fc9f91a1eae70a"
+  },
+  "repository": "https://github.com/vitorlacerdadigital/DeskcommCRM",
+  "branch": "custom/shared-v178-acquarela-convert",
+  "revision": "17c3461ac5e66671395cc98c279c857ec27579d2",
+  "build_url": "https://github.com/vitorlacerdadigital/DeskcommCRM/actions/runs/37896147578",
+  "images": {
+    "app": "ghcr.io/vitorlacerdadigital/deskcommcrm-branding@sha256:66aa134b103fde22376280a2b305a527a67ec7e4471493fc24b74df0ccb7becc",
+    "worker": "ghcr.io/vitorlacerdadigital/deskcomm-worker-branding@sha256:24e596dddaeca661b19abba2072ec6bcea9932102cc07bdaeb7e1b7337728e6f",
+    "scheduler": "ghcr.io/vitorlacerdadigital/deskcomm-scheduler-branding@sha256:b7a598b55e2be79f5efbac2aaf652e5f8b82f0500617ae4bf5e17a3301986e2e"
+  },
+  "verification": {
+    "image_ci": "passed",
+    "all_three_revision_labels": "17c3461ac5e66671395cc98c279c857ec27579d2",
+    "typecheck": "passed",
+    "eslint_errors": 0,
+    "eslint_warnings": 529,
+    "channels": "passed",
+    "role_rank": "passed",
+    "self_host_shell_tests": "passed",
+    "unit_full_run": {"files": 2116, "passed": 22054, "expected_failure": 1},
+    "baseline_install_and_reapply": "passed",
+    "db_targeted_tests": {"files": 3, "passed": 58},
+    "update_with_existing_data": "10 synthetic rows and 8 object identities preserved",
+    "browser_on_published_app_image": {"passed": 16, "database": "fresh local Supabase baseline", "external_provider": "synthetic JEV HTTP double"},
+    "saved_context_regression": "4 -> 8 -> 4; real Postgres and identical resolver source; no provider call",
+    "worker_selected_source_hashes": "4/4 match the revision"
+  },
+  "schema": {
+    "baseline": "supabase/baseline.sql at revision",
+    "new_local_migration": "20261009060518_0617_indice_textual_acervo_de_promessas.sql",
+    "gemini_canonical_migration": "20261008040255_0599_gemini_35_flash_lite_no_catalogo.sql",
+    "gemini_0576": "historical fork migration retained; official baseline uses canonical 0599"
+  },
+  "preservation_contract": {
+    "saved_router_context": "read each organization router config; default 8 only if missing; configurable 0..16",
+    "consent": "V1 stays capped at 4; V2 uses saved limit up to 16; never expand on deployment",
+    "classification_model": "preserve saved automatic or explicit provider/model",
+    "commercial_catalog": "official catalog and authorized knowledge; no parallel commercial-policy registry",
+    "business_data_and_configuration": "remain specific to each installation; never transfer between organizations",
+    "auth_cloud_and_smtp": "external configuration stays unchanged; optional hook remains disabled unless separately authorized and verified"
+  },
+  "deployment": {
+    "production_deployed_by_this_preparation": false,
+    "requires_owner_authorization": true,
+    "agents_published_or_activated": false,
+    "real_messages_sent": false
+  },
+  "upstream": {
+    "reviewers": "https://github.com/melgarafael/DeskcommCRM/pull/2629",
+    "router_context": "https://github.com/melgarafael/DeskcommCRM/pull/1971",
+    "invites_and_email_identity": "https://github.com/melgarafael/DeskcommCRM/pull/2649"
+  }
+}
