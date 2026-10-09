@@ -6,29 +6,60 @@
   },
   "repository": "https://github.com/vitorlacerdadigital/DeskcommCRM",
   "branch": "custom/shared-v178-acquarela-convert",
-  "revision": "17c3461ac5e66671395cc98c279c857ec27579d2",
-  "build_url": "https://github.com/vitorlacerdadigital/DeskcommCRM/actions/runs/37896147578",
+  "revision": "651a511088dd8c342e70fca20ced877c0492e81a",
+  "build_url": "https://github.com/vitorlacerdadigital/DeskcommCRM/actions/runs/37899361478",
   "images": {
-    "app": "ghcr.io/vitorlacerdadigital/deskcommcrm-branding@sha256:66aa134b103fde22376280a2b305a527a67ec7e4471493fc24b74df0ccb7becc",
-    "worker": "ghcr.io/vitorlacerdadigital/deskcomm-worker-branding@sha256:24e596dddaeca661b19abba2072ec6bcea9932102cc07bdaeb7e1b7337728e6f",
-    "scheduler": "ghcr.io/vitorlacerdadigital/deskcomm-scheduler-branding@sha256:b7a598b55e2be79f5efbac2aaf652e5f8b82f0500617ae4bf5e17a3301986e2e"
+    "app": "ghcr.io/vitorlacerdadigital/deskcommcrm-branding@sha256:831727dbf44b562ff7c8c93447a21d6976fec4eefd3721a3dc122245cdeed1cf",
+    "worker": "ghcr.io/vitorlacerdadigital/deskcomm-worker-branding@sha256:3598347329ff5fd119d0b10dc10fdd93359c4fb277755abe02763aff15af030e",
+    "scheduler": "ghcr.io/vitorlacerdadigital/deskcomm-scheduler-branding@sha256:6f785357279963fe609744b9cd883f742aa988f9ecb5cbded231efa67f017932"
   },
   "verification": {
     "image_ci": "passed",
-    "all_three_revision_labels": "17c3461ac5e66671395cc98c279c857ec27579d2",
+    "all_three_revision_labels": "651a511088dd8c342e70fca20ced877c0492e81a",
     "typecheck": "passed",
     "eslint_errors": 0,
     "eslint_warnings": 529,
     "channels": "passed",
     "role_rank": "passed",
     "self_host_shell_tests": "passed",
-    "unit_full_run": {"files": 2116, "passed": 22054, "expected_failure": 1},
+    "unit_full_run": {
+      "files": 2116,
+      "passed": 22054,
+      "expected_failure": 1,
+      "revision": "17c3461ac5e66671395cc98c279c857ec27579d2"
+    },
     "baseline_install_and_reapply": "passed",
-    "db_targeted_tests": {"files": 3, "passed": 58},
+    "db_targeted_tests": {
+      "files": 3,
+      "passed": 58
+    },
     "update_with_existing_data": "10 synthetic rows and 8 object identities preserved",
-    "browser_on_published_app_image": {"passed": 16, "database": "fresh local Supabase baseline", "external_provider": "synthetic JEV HTTP double"},
+    "browser_on_published_app_image": {
+      "passed": 16,
+      "database": "fresh local Supabase baseline",
+      "external_provider": "synthetic JEV HTTP double",
+      "revision": "651a511088dd8c342e70fca20ced877c0492e81a",
+      "harness_health_limitation": "Supabase ok; Redis/WAHA intentionally absent; no production runtime parity claim"
+    },
     "saved_context_regression": "4 -> 8 -> 4; real Postgres and identical resolver source; no provider call",
-    "worker_selected_source_hashes": "4/4 match the revision"
+    "worker_selected_source_hashes": "6/6 match the revision",
+    "prior_broad_verification_revision": "17c3461ac5e66671395cc98c279c857ec27579d2",
+    "maintainer_corrections": {
+      "promise_detector_passed": 43,
+      "unit_passed": 42,
+      "typecheck": "passed",
+      "sabotage_expected_failures": [
+        5,
+        1
+      ],
+      "upstream_commits": [
+        "a27c51a2f9a4936b8d5b8d28b3a8bf19c0953938",
+        "8e5d57cab2888facb68448d11a6eaecceca08c12"
+      ],
+      "lint_errors": 0,
+      "revision": "651a511088dd8c342e70fca20ced877c0492e81a",
+      "restored_passed": 22
+    }
   },
   "schema": {
     "baseline": "supabase/baseline.sql at revision",

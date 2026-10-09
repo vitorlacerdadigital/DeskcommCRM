@@ -1,6 +1,6 @@
 # Versão comum v1.78.0 — candidata validada
 
-Base oficial v1.78.0, revisão conciliada `17c3461ac5e66671395cc98c279c857ec27579d2`. Pins, CI e medições no arquivo `shared-v1.78.0-release.json`. Esta preparação não implantou a candidata em produção. Implantação exige orientação do proprietário.
+Base oficial v1.78.0, revisão conciliada `651a511088dd8c342e70fca20ced877c0492e81a`. Pins, CI e medições no arquivo `shared-v1.78.0-release.json`. Esta preparação não implantou a candidata em produção. Implantação exige orientação do proprietário.
 
 O pacote conserva as correções oficiais da release e os patches gerais ainda necessários: marca, convites/cadastro/login, estrutura e identidade dos e-mails, contexto configurável JEV e revisão comercial com evidências/contexto. Gemini 3.5 Flash-Lite, preços, catálogo/acervo e resultados do roteamento usam as implementações oficiais equivalentes. A migration local Gemini 0576 fica como histórico; o baseline usa a 0599 oficial. A nova 0617 cria somente um índice textual idempotente.
 
