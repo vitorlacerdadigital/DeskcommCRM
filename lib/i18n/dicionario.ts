@@ -37,6 +37,13 @@ import type { Idioma } from "./idiomas";
 type Traducoes = Record<string, Partial<Record<Exclude<Idioma, "pt-BR">, string>>>;
 
 export const DICIONARIO: Traducoes = {
+  "Proposta, não executada": { es: "Propuesta, no ejecutada" },
+  "Argumentos da proposta": { es: "Argumentos de la propuesta" },
+  "Abrir caso para a equipe": { es: "Abrir un caso para el equipo" },
+  "Passar a conversa para uma pessoa": { es: "Pasar la conversación a una persona" },
+  "Agendar retorno": { es: "Programar respuesta posterior" },
+  "Registrar nota": { es: "Registrar nota" },
+  "Atualizar dados do atendimento": { es: "Actualizar los datos de la atención" },
   "Revisar ofertas e compromissos de retorno": { es: "Revisar ofertas y compromisos de respuesta posterior" },
   "Confere a resposta, as evidências consultadas e o contexto da conversa: oferta comercial, compromisso de retorno e retorno só da IA.": { es: "Revisa la respuesta, las evidencias consultadas y el contexto de la conversación: oferta comercial, compromiso de respuesta posterior y respuesta solo de la IA." },
   "O Jev revisa primeiro. A IA configurada assume quando ele falha ou fica em dúvida; casos e follow-ups continuam sendo conferidos pelo CRM.": { es: "JEV revisa primero. La IA configurada toma el relevo si falla o tiene dudas; el CRM sigue comprobando los casos y seguimientos." },
