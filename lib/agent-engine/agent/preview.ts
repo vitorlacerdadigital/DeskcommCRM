@@ -1,6 +1,7 @@
 /** Preview is an execution policy of the real turn, never a simulated queue job. */
 import type pg from 'pg';
-import { hasOpenCaseForContact } from './human-cases';
+import { hasOpenCaseForContact, openHumanCaseInputSchema } from './human-cases';
+import { validarPedidoDePassagem } from './human-handoff';
 import type { ToolSet } from '../edge/llm/run-model-call';
 import type { LeadContext, LeadContextResult } from '../edge/crm/get-lead-context';
 import type { PublishedAgentConfig } from './agent-config';
@@ -14,6 +15,7 @@ import {
   type GateTraceEntry,
   loadChannelProvider,
   pacingGate,
+  casePromiseGate,
 } from '../guardrails/before-send';
 import { loadChannelKnobs, loadPacingState } from '../pacing/store';
 import { PACING_DEFAULTS } from '../pacing/defaults';
@@ -46,7 +48,7 @@ export interface TurnPreview {
 export interface PreviewResult {
   checkpoint?: unknown;
   candidates: Array<{ body: string; citations: Citation[]; trace: GateTraceEntry[] }>;
-  proposals: Array<{ tool: string; arguments: unknown }>;
+  proposals: Array<{ tool: string; arguments: unknown; validada?: true }>;
   impediments: Array<{ code: string; message: string }>;
   /**
    * O que NÃO impediu o candidato, mas o operador precisa ver sobre o ENVIO real:
@@ -180,20 +182,33 @@ export const SCENARIO_READS = new Set([
  * o envio real; o sandbox não envia mensagens. Rebaixar somente esse veto a aviso
  * permite inspecionar o candidato e executar os demais gates de conteúdo.
  *
- * Só o pacing muda, e só aqui. Opt-out, LGPD e os gates de conteúdo continuam vetando;
+ * Pacing vira aviso; compromisso humano também, somente depois de proposta válida
+ * neste run. Opt-out, LGPD e os demais gates de conteúdo continuam vetando;
  * o rascunho assistido (`assisted`, contato real) e a produção seguem com
  * `BEFORE_SEND_GATES` intacta. O veto vira linha `skipped: 'sandbox_send_embargo'` no
  * trace e um aviso explícito no resultado — nunca um `pass` silencioso.
  */
-function gatesDoSandbox(avisos: Array<{ code: string; message: string }>): readonly Gate[] {
+function gatesDoSandbox(
+  avisos: Array<{ code: string; message: string }>,
+  operacaoHumanaProposta: boolean,
+): readonly Gate[] {
   return BEFORE_SEND_GATES.map((gate) =>
-    gate.name !== pacingGate.name
+    gate.name !== pacingGate.name && !(gate.name === casePromiseGate.name && operacaoHumanaProposta)
       ? gate
       : {
           name: gate.name,
           evaluate: (ctx: GateContext) => {
             const verdict = gate.evaluate(ctx);
             if (verdict.pass) return verdict;
+            if (gate.name === casePromiseGate.name) {
+              avisos.push({
+                code: 'sandbox_human_operation_proposed',
+                message: 'A resposta depende de uma operação humana proposta neste teste. ' +
+                  'Nenhum caso ou transferência foi executado. O conteúdo foi avaliado; ' +
+                  'a conclusão operacional só será comprovada no atendimento real.',
+              });
+              return { pass: true, skipped: 'sandbox_human_operation_proposed' as const };
+            }
             avisos.push({
               code: verdict.code,
               message:
@@ -204,6 +219,15 @@ function gatesDoSandbox(avisos: Array<{ code: string; message: string }>): reado
           },
         },
   );
+}
+
+/** Uma passagem válida encerra o sandbox como ação proposta, não como turno sem resposta. */
+const passagensDoSandbox = new WeakMap<TurnPreview, string>();
+const chaveDaPrevia = (p: TurnPreview) => JSON.stringify([
+  p.organizationId, p.runId, p.contactId, p.context.context.conversation_id,
+]);
+export function passagemPropostaNoSandbox(p: TurnPreview): boolean {
+  return p.kind === 'sandbox' && passagensDoSandbox.get(p) === chaveDaPrevia(p);
 }
 /**
  * A MESMA preparação de mídia do envio real, dentro do dry-run (#2490).
@@ -272,6 +296,13 @@ export function applyPreviewPolicy(
    */
   prepararMidia?: (codigo: string) => Promise<FotosPreparadas>,
 ): ToolSet {
+  // Só propostas validadas neste closure, anteriores à candidata, no mesmo run.
+  // Não ler arrays recebidos nem mudar hasOpenCase/openedCaseThisTurn para simular sucesso.
+  const identidade = [p.organizationId, p.runId, p.contactId, p.context.context.conversation_id];
+  passagensDoSandbox.delete(p);
+  let operacaoHumanaProposta = false;
+  const mesmoRun = () => identidade.every((valor, i) =>
+    valor === [p.organizationId, p.runId, p.contactId, p.context.context.conversation_id][i]);
   return Object.fromEntries(
     Object.entries(tools).map(([name, definition]) => {
       const nativeRead = [
@@ -339,7 +370,9 @@ export function applyPreviewPolicy(
                   body,
                   semanticPromise: semanticClassifier ? await semanticClassifier(body) : null,
                 },
-                p.kind === 'sandbox' ? gatesDoSandbox(avisos) : BEFORE_SEND_GATES,
+                p.kind === 'sandbox'
+                  ? gatesDoSandbox(avisos, operacaoHumanaProposta && mesmoRun())
+                  : BEFORE_SEND_GATES,
               );
               if (result.veto) {
                 p.result.impediments.push({ code: result.veto.code, message: result.veto.message });
@@ -371,6 +404,44 @@ export function applyPreviewPolicy(
                   message: 'Esta consulta precisa de um contato real autorizado.',
                 },
               };
+            if (name === 'open_human_case' || name === 'request_human_handoff') {
+              const disponivel = name === 'open_human_case'
+                ? p.agent.casesEnabled === true
+                : p.agent.handoffToolEnabled === true;
+              const parsed = name === 'open_human_case'
+                ? openHumanCaseInputSchema.safeParse(args)
+                : validarPedidoDePassagem(args);
+              if (!disponivel || ('success' in parsed ? !parsed.success : !parsed.ok)) {
+                const error = {
+                  code: disponivel ? 'invalid_payload' : 'preview_capability_unavailable',
+                  message: disponivel
+                    ? 'A proposta de operação humana tem campos inválidos. Corrija os argumentos antes de continuar.'
+                    : 'Esta operação humana não está habilitada na configuração do agente.',
+                };
+                p.result.impediments.push(error);
+                return { ok: false, error };
+              }
+              const data = 'success' in parsed
+                ? parsed.success ? parsed.data : null
+                : parsed.ok ? parsed.data : null;
+              p.result.proposals.push({ tool: name, arguments: data, validada: true });
+              if (p.kind === 'sandbox' && mesmoRun()) operacaoHumanaProposta = true;
+              if (p.kind === 'sandbox' && mesmoRun() && name === 'request_human_handoff')
+                passagensDoSandbox.set(p, chaveDaPrevia(p));
+              const code = 'sandbox_human_operation_proposed';
+              if (p.kind === 'sandbox' && !p.result.warnings.some(x => x.code === code))
+                p.result.warnings.push({ code, message: 'Operação humana proposta, não executada. ' +
+                  'Este teste não cria caso, não transfere a conversa e não avisa ninguém.' });
+              return {
+                ok: true,
+                status: 'proposal_only',
+                message: p.kind === 'sandbox'
+                  ? name === 'request_human_handoff'
+                    ? 'Passagem proposta neste teste; não executada. O sistema enviaria o aviso de passagem no atendimento real. Encerre o turno.'
+                    : 'Caso proposto neste teste; não aberto. Você pode propor a continuação hipotética da conversa. Não repita a operação. Nenhum cliente será avisado.'
+                  : 'Proposta registrada. A operação não foi executada e exige autorização separada.',
+              };
+            }
             if (
               catalog ||
               [

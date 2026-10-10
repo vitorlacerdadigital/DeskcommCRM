@@ -25,6 +25,7 @@ import type { AgentRow } from "@/hooks/ai/useAgent";
 import type { AgentVersionRow } from "@/hooks/ai/useAgentVersions";
 
 import { RunTrace } from "./RunTrace";
+import { AcoesPropostasNoTeste } from "./AcoesPropostasNoTeste";
 
 interface Props {
   agent: AgentRow;
@@ -332,18 +333,7 @@ export function TestPanel({ agent, draft, published, readOnly }: Props) {
                     {x.message}
                   </p>
                 ))}
-                {!!result.proposals?.length && (
-                  <div>
-                    <p className="font-medium">
-                      {t("Ações propostas: precisam de autorização separada")}
-                    </p>
-                    <ul>
-                      {result.proposals.map((x, i) => (
-                        <li key={i}>{x.tool}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                <AcoesPropostasNoTeste proposals={result.proposals ?? []} />
               </div>
             ) : result.guardrails ? (
               <Verificacoes g={result.guardrails} />

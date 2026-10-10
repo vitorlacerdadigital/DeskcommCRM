@@ -156,6 +156,8 @@ acessibilidade).
 | [`audits/2026-08-14-alinhamento-stable-v1.3.0.md`](audits/2026-08-14-alinhamento-stable-v1.3.0.md) | O que a tag `v1.3.0` — que é o kit que roda na VPS, e não a `main` — de fato contém |
 | [`../tests/e2e/README.md`](../tests/e2e/README.md) | Como rodar os E2E |
 
+- [Prévia de operações humanas](specs/previa-operacoes-humanas.md) — propostas de caso/passagem no Testar, trace explícito e diferença do atendimento real.
+
 ## 8. Execução — planos, épicos, handoffs
 
 Documentação de *processo*. Alta rotatividade; trate como estado, não como contrato.

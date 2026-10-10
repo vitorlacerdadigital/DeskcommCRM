@@ -195,6 +195,7 @@ describe("sandbox fora da janela de envio", () => {
       etapa = vi.fn(),
       enviar = vi.fn();
     const p = previa("sandbox");
+    p.agent.handoffToolEnabled = true;
     const tools = applyPreviewPolicy(
       {
         request_human_handoff: definicao(handoff),

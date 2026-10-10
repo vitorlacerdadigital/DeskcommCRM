@@ -2,7 +2,7 @@ import { prospectingConversationContext } from "@/lib/prospecting/context";
 import { setExecutionAgentOperation } from '@/lib/atendimento/fronteira-server';
 import { TIPOS_DE_CASO, TIPOS_DE_CASO_PARA_A_IA } from "@/lib/ai/case-copy";
 import { DEFAULT_CHANNEL_PROVIDER } from '@/lib/channels/capabilities';
-import { applyPreviewPolicy, previewGateContext, type TurnPreview } from './preview';
+import { applyPreviewPolicy, previewGateContext, passagemPropostaNoSandbox, type TurnPreview } from './preview';
 import { claimOfJob } from '../queue/claim';
 import { currentExecutionBoundary, guardServiceEffect } from '@/lib/atendimento/fronteira-server';
 /**
@@ -121,6 +121,7 @@ import {
   detectHumanHandoffRequest,
   isLeadInHandoff,
   performHumanHandoff,
+  validarPedidoDePassagem,
 } from './human-handoff';
 import {
   maybeCompact,
@@ -269,9 +270,9 @@ export function descricaoDaFerramentaDePassagem(handoffLegalEnabled: boolean): s
       : '(reclamação séria, questão financeira sensível; assunto jurídico é o trabalho normal ' +
         'deste atendimento e não é, sozinho, motivo para passar a conversa) ') +
     'ou quando você atingir o limite do que pode resolver. ' +
-    'AVISE O LEAD ANTES: mande uma mensagem dizendo que você vai chamar alguém da equipe e SÓ ENTÃO ' +
-    'chame esta ferramenta — depois dela você não consegue mais falar com ele. Se você não avisar, ' +
-    'o sistema manda um aviso padrão no seu lugar. Acionada a ferramenta, encerre o turno. ' +
+    'Quando a passagem estiver autorizada, chame esta ferramenta diretamente. O sistema cuida do ' +
+    'aviso de passagem; não mande antes uma promessa de chamar a equipe ou de retornar. ' +
+    'Depois da passagem você não consegue mais falar com o lead: encerre o turno. ' +
     'NUNCA diga ao lead que "já chamei alguém" ou "já passei para a equipe" sem ter chamado esta ' +
     'ferramenta NO MESMO turno — a frase no passado não substitui a ação, e ninguém é avisado de ' +
     'verdade. Preencha por_que, o_que_tentei e cliente_quer — quem assumir só vê o que você escrever ' +
@@ -3926,13 +3927,13 @@ async function executarTurnoDoAgente(
     request_human_handoff: tool({
       ...AGENT_TOOL_DEFS.request_human_handoff,
       execute: async (raw) => {
-        passouParaAEquipe = true;
+        const validado = validarPedidoDePassagem(raw);
+        if (!validado.ok) return validado;
         try {
           // ═══ O PISO: se o modelo não falou, o sistema fala ═══
           //
-          // A descrição da tool manda avisar o lead ANTES de chamá-la, e a
-          // mensagem de retorno repete. Mas capacidade que depende de o modelo
-          // LEMBRAR é capacidade que não existe metade das vezes — a mesma
+          // A ferramenta cuida do aviso antes da passagem. Capacidade que
+          // depende de o modelo LEMBRAR não existe metade das vezes — a mesma
           // conclusão que fez `expectativaDeAtendimento` parar de esperar que
           // ele consultasse a disponibilidade sozinho.
           //
@@ -3973,6 +3974,7 @@ async function executarTurnoDoAgente(
             raw,
           );
           if (!res.ok) return res; // erro de ensino (payload fora da whitelist)
+          passouParaAEquipe = true;
           return { ok: true, status: res.status, message: res.message };
         } catch (err) {
           noteRunError(err instanceof Error ? err : new Error(String(err)));
@@ -4638,8 +4640,10 @@ async function executarTurnoDoAgente(
         // Rascunho: a resposta é o send_message ACEITO; a etapa seguinte só
         // "encerrava". Aceito, e não chamado: o envio vetado pela cadeia
         // before_send volta ao modelo para ele reescrever (o 1º veto ensina).
-        ...(preview?.kind === 'assisted'
-          ? { pararQuando: () => preview.result.candidates.length > 0 }
+        ...(preview
+          ? { pararQuando: () => preview.kind === 'assisted'
+              ? preview.result.candidates.length > 0
+              : passagemPropostaNoSandbox(preview) }
           : {}),
         ...(agentConfig !== null
           ? {
@@ -4822,7 +4826,8 @@ async function executarTurnoDoAgente(
     // sem nada tendo mudado no meio.
     // Prévia sem candidato e sem impedimento: quem opera precisa saber que o agente não propôs nada.
     const avisarSemCandidato = (p: NonNullable<typeof preview>): void => {
-      if (p.result.candidates.length === 0 && p.result.impediments.length === 0)
+      if (p.result.candidates.length === 0 && p.result.impediments.length === 0 &&
+          !passagemPropostaNoSandbox(p))
         p.result.impediments.push({
           code: 'no_candidate',
           message: 'O agente não propôs uma resposta. Revise o cenário ou a configuração.',

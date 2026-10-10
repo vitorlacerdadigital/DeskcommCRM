@@ -325,7 +325,7 @@ export type GateVerdict =
       pass: true;
       waitMs?: number;
       amendBody?: string;
-      skipped?: 'not_applicable' | 'sandbox_send_embargo' | 'nao_conferido';
+      skipped?: 'not_applicable' | 'sandbox_send_embargo' | 'sandbox_human_operation_proposed' | 'nao_conferido';
     }
   | {
       pass: false;

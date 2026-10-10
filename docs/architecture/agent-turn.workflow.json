@@ -369,6 +369,22 @@
       "type": "screen",
       "label": "Execuções e prévia",
       "sublabel": "conteudo_bloqueado; revisão pelo operador"
+    },
+    {
+      "id": "sandboxOperacoesHumanas",
+      "lane": "worker",
+      "col": 7,
+      "type": "backend",
+      "label": "Política de Testar",
+      "sublabel": "schemas reais; proposta válida por run; sem executor de escrita"
+    },
+    {
+      "id": "sandboxPropostasTela",
+      "lane": "config",
+      "col": 8,
+      "type": "frontend",
+      "label": "Testar: propostas e avisos",
+      "sublabel": "não executada; argumentos e trace; passagem terminal não é silêncio"
     }
   ],
   "edges": [
@@ -858,6 +874,34 @@
       "from": "bloqueioProvedor",
       "to": "execucoesFalhas",
       "label": "llm_calls e mensagem sanitizada no teste"
+    },
+    {
+      "id": "turn-sandbox-propostas",
+      "from": "turn",
+      "to": "sandboxOperacoesHumanas",
+      "label": "applyPreviewPolicy só no run de prévia",
+      "route": "drop"
+    },
+    {
+      "id": "sandbox-propostas-gates",
+      "from": "sandboxOperacoesHumanas",
+      "to": "gates",
+      "label": "caso proposto válido: só gate de caso vira aviso no sandbox",
+      "route": "drop"
+    },
+    {
+      "id": "sandbox-propostas-tela",
+      "from": "sandboxOperacoesHumanas",
+      "to": "sandboxPropostasTela",
+      "label": "PreviewResult: propostas, avisos e candidatas",
+      "route": "drop"
+    },
+    {
+      "id": "sandbox-propostas-retorno",
+      "from": "sandboxPropostasTela",
+      "to": "turn",
+      "label": "humano ajusta versão e repete teste; não executa atendimento",
+      "route": "drop"
     }
   ],
   "cards": [
@@ -919,6 +963,16 @@
         "Saída: candidata inteira + seleção limitada por relevância, preservando política e produto → classificador → gates existentes; sem exceção automática",
         "Sem fonte consultada mantém regra anterior; cliente, notas e prompt não autorizam oferta",
         "Laço: impedimento no Teste → humano corrige Catálogo/Conhecimento → próxima consulta usa a fonte atualizada"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Operação humana proposta no sandbox não é execução",
+      "items": [
+        "Sche­mas/validação puros compartilhados com as ferramentas reais; mutadores não são chamados no Testar.",
+        "Proposta validada anterior neste run → aviso no gate de caso. Não preencher caso fictício; assisted e produção conservam exigência real.",
+        "Entrada: Testar do agente. Saída: TestPanel/AcoesPropostasNoTeste com argumentos e trace. Laço: humano corrige configuração e repete. Sem escrita/cron de atendimento.",
+        "Handoff proposto encerra sandbox como ação; no atendimento real o sistema cuida do aviso antes de force_human."
       ]
     }
   ]
