@@ -38,3 +38,12 @@ Painel nativo mostra autorização revogável, estado da tarefa e últimos perce
 6. Retorno: percentuais/concordância sem texto privado orientam observar, decidir ou pausar. Detector e prova operacional continuam ativos.
 
 Testar os três sinais, faixas de dúvida, falhas, orçamento, contexto/PII, isolamento organizacional, aceite/revogação entre leituras, painel e gates com/sem caso/follow-up. A contribuição é independente do roteamento JEV e não resolve por si a dependência contratual externa.
+
+
+## Fontes equivalentes, inclusive sem Casos ou KB
+
+O pacote opcional `serviceContext` reúne perfil/campos/memória, decisões limitadas à ação original, recibos persistidos e continuidade com aliases locais e cobertura. `sentAntecedents` contém apenas textos efetivamente enviados neste turno. Reserva, JEV e confirmador recebem a mesma projeção factual; suas competências, bindings, orçamento e condições de chamada continuam diferentes. A pergunta comercial conserva as evidências aprovadas como fonte de política; memória e perfil não ganham essa autoridade.
+
+Essas categorias exigem consentimento de contexto v2 também quando não há Caso humano. V1 usa reserva com `context_consent_version_insufficient`, sem apagar configuração ou registrar aceite automático. Revalidar consentimento antes da rede e após cache continua obrigatório. Fontes são dados; instruções de liberação em notas/references não alteram o classificador. IDs privados e UUIDs em texto livre não saem na projeção.
+
+Teste em par do motor: `tests/invariants/revisor-fontes-atendimento.test.ts` usa PostgreSQL real, turno/geração/revisão reais e provedores/canal de captura sintéticos. Ele mede integração e isolamento, não acurácia de modelo pago ou entrega externa. O novo read adiciona uma consulta agrupada à fotografia; teste de30 leituras mede p95 sem rede. Generalização de pedido canônico/tempo/seleção/cache e validação integrada permanecem etapas próprias.

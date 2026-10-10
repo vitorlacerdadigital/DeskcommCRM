@@ -633,6 +633,22 @@
       "type": "service",
       "label": "followup-turn: o passo 'Classificar (IA)' do follow-up (lib/ai/decisao/followup.ts)",
       "sublabel": "só com resposta ao envio do fluxo: a mesma pergunta da IA de sempre (followup_classify), em paralelo — as saídas do passo como opções, sem 'nenhuma', só o texto digitado pelo cliente por scrubMessage (mídia não sai); SÓ OBSERVA nesta versão: a saída que move o fluxo é sempre a da IA de sempre, e ninguém espera por ele"
+    },
+    {
+      "id": "fontes_atendimento_db",
+      "lane": "dados",
+      "col": 8,
+      "type": "database",
+      "label": "Cadastros, timeline, notas, agenda, propostas e fila",
+      "sublabel": "fontes canônicas scoped; contato e negócio distintos"
+    },
+    {
+      "id": "fontes_atendimento",
+      "lane": "motor",
+      "col": 8,
+      "type": "service",
+      "label": "contexto-do-atendimento.ts",
+      "sublabel": "montador tipado, procedência, cobertura, limites, fotografia"
     }
   ],
   "edges": [
@@ -1471,6 +1487,24 @@
       "from": "prazoConfig",
       "to": "atendimentoManual",
       "label": "manual_reply_silence_minutes (5 min a 24 h; null = 60): quanto a IA fica calada depois de uma resposta pelo celular — lido a cada pausa por lerPrazoDoSilencioManualMinutos (diagnóstico de @gaberaldo-svg, #2005)"
+    },
+    {
+      "id": "ctx135",
+      "from": "fontes_atendimento_db",
+      "to": "fontes_atendimento",
+      "label": "uma consulta agrupada por org/contato/conversa/job"
+    },
+    {
+      "id": "ctx136",
+      "from": "fontes_atendimento",
+      "to": "ritual",
+      "label": "mesmos fatos na abertura do agente, sem inferir autoridade"
+    },
+    {
+      "id": "ctx137",
+      "from": "fontes_atendimento",
+      "to": "jev",
+      "label": "projeção equivalente para JEV/reserva/confirmador; v2 ou reserva"
     }
   ],
   "cards": [

@@ -10,6 +10,7 @@ import { PERGUNTA_COMERCIAL_COM_EVIDENCIAS, PERGUNTA_COMERCIAL_SEM_EVIDENCIA, PE
 import { decidirRevisao, SINAIS_DA_REVISAO, type ProbabilidadesDaRevisao, type SinalDaRevisao } from "@/lib/agent-engine/guardrails/promise/decisao-do-jev";
 import { pacoteFactualDaRevisao, INSTRUCAO_REPASSE, temDecisaoElegivel } from "@/lib/agent-engine/guardrails/promise/contrato-contexto";
 import type { ContextoDeDecisaoHumana } from "@/lib/agent-engine/agent/contexto-de-decisao-humana";
+import type { ContextoDoAtendimento } from "@/lib/agent-engine/agent/contexto-do-atendimento";
 import { MODELO_DO_JEV, type Pergunta, type ResultadoDaDecisao } from "./cliente";
 import { podeTentar, registrarFalha, registrarSucesso } from "./disjuntor";
 import { decidirNoPonto } from "./ponto";
@@ -19,6 +20,8 @@ import { estadoEfetivoDaTarefa, TAREFA_DA_REVISAO_DE_RESPOSTA } from "./tarefas"
 export interface PacoteDaRevisao {
   candidate: string;
   humanDecisionContext?: ContextoDeDecisaoHumana;
+  serviceContext?: ContextoDoAtendimento;
+  sentAntecedents?: readonly string[];
   commercialEvidence?: readonly EvidenciaComercial[];
   conversationContext?: ContextoDaRevisao;
 }
@@ -114,7 +117,7 @@ export async function revisarRespostaComJev(
 ): Promise<PromiseClassification> {
   const config = await (deps.lerConfig ?? configDaTarefaNoPool)(pool, ids.tenantId, TAREFA_DA_REVISAO_DE_RESPOSTA);
   const estado = estadoEfetivoDaTarefa(config, TAREFA_DA_REVISAO_DE_RESPOSTA);
-  if (pacote.humanDecisionContext && config.contexto_revisao?.versao !== 2) {
+  if ((pacote.humanDecisionContext || pacote.serviceContext || pacote.sentAntecedents?.length) && config.contexto_revisao?.versao !== 2) {
     deps.log.info("reserva assume contexto ampliado", { event:"jev_review_fallback",motivo:"context_consent_version_insufficient" });
     return reserva();
   }
@@ -130,7 +133,7 @@ export async function revisarRespostaComJev(
   try {
     r = await (deps.perguntar ?? decidirNoPonto)({
       organizationId: ids.tenantId, ponto: "promise_semantic",
-      ...(pacote.humanDecisionContext ? { versaoContextoRevisao:2 as const } : {}),
+      ...(pacote.humanDecisionContext || pacote.serviceContext || pacote.sentAntecedents?.length ? { versaoContextoRevisao:2 as const } : {}),
       estado: pacoteParaJev(pacote), perguntas: perguntasDaRevisao(Boolean(pacote.commercialEvidence?.length), temDecisaoElegivel(pacote)),
     });
   } catch {

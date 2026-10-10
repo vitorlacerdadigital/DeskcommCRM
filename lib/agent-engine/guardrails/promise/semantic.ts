@@ -23,6 +23,7 @@
 import type pg from "pg";
 import { pacoteFactualDaRevisao, INSTRUCAO_REPASSE, temDecisaoElegivel } from "./contrato-contexto";
 import type { ContextoDeDecisaoHumana } from "../../agent/contexto-de-decisao-humana";
+import type { ContextoDoAtendimento } from "../../agent/contexto-do-atendimento";
 
 import type { Logger } from "../../obs/logger";
 import type { ProviderRegistry } from "../../edge/llm/providers";
@@ -196,6 +197,8 @@ export async function classifyPromise(
   args: {
     candidate: string;
     humanDecisionContext?: ContextoDeDecisaoHumana;
+    serviceContext?: ContextoDoAtendimento;
+    sentAntecedents?: readonly string[];
     model?: string;
     llmOverride?: LlmResolveOverride;
     /** Somente evidências recolhidas das consultas reais do servidor neste turno. */
@@ -222,7 +225,7 @@ export async function classifyPromise(
       ...(args.model !== undefined ? { model: args.model } : {}),
       ...(args.llmOverride !== undefined ? { llmOverride: args.llmOverride } : {}),
       system: (args.commercialEvidence?.length ? INSTRUCAO_COM_EVIDENCIAS : PROMISE_SEMANTIC_INSTRUCTION) + INSTRUCAO_REPASSE,
-      messages: args.commercialEvidence?.length || args.conversationContext || args.humanDecisionContext
+      messages: args.commercialEvidence?.length || args.conversationContext || args.humanDecisionContext || args.serviceContext
         ? [
             {
               role: "user",
