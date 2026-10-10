@@ -78,6 +78,9 @@ export interface PromiseClassification {
  * de promessa vs. inocente (incl. as armadilhas de slogan) e força saída JSON.
  */
 
+export const PROMISE_SEMANTIC_INSTRUCTION =
+  CABECALHO + PERGUNTA_COMERCIAL_SEM_EVIDENCIA + PERGUNTA_RETORNO_E_FORMATO;
+
 function buildPromiseMessage(candidate: string): string {
   return [
     "## Mensagem candidata (que o vendedor quer enviar ao lead)",
