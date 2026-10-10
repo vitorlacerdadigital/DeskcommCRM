@@ -193,6 +193,8 @@ export interface GateContext {
    */
   casesEnabled: boolean;
   hasOpenCase: boolean;
+  humanDecisionValidated?: boolean;
+  humanDecisionStale?: boolean;
   openedCaseThisTurn: boolean;
   /**
    * Nome(s) próprio(s) que o PROMPT do tenant usa para a retaguarda humana (ex.:
@@ -453,6 +455,8 @@ export const casePromiseGate: Gate = {
   name: 'case_promise',
   evaluate: (ctx) => {
     if (!ctx.casesEnabled) return { pass: true };
+    if (ctx.humanDecisionStale) return { pass:false, code:'human_decision_context_changed', reason:'O contexto da decisão humana mudou. Releia o caso antes de comunicar a conclusão.' };
+    if (ctx.humanDecisionValidated === true && ctx.semanticPromise?.repasseConcluidoFiel === true) return { pass:true };
     if (ctx.hasOpenCase || ctx.openedCaseThisTurn) return { pass: true };
     // Lê os DOIS sinais, em OU — e o OU é o ponto. Exigir os dois faria o conserto
     // não consertar nada: o léxico é o filtro BARATO e continua valendo sozinho
@@ -1082,6 +1086,8 @@ export interface RunBeforeSendArgs {
    */
   casesEnabled?: boolean;
   hasOpenCase?: boolean;
+  /** Só o servidor fornece a prova; chamada fora do classificador, sob a transação do envio. */
+  validateHumanDecision?: (db: pg.PoolClient, candidate: string, verdict: PromiseClassification | null) => Promise<'valid' | 'not_eligible' | 'stale'>;
   openedCaseThisTurn?: boolean;
   /** Ver `GateContext.humanPromiseExtraTargets`. Ausente = só cargos genéricos. */
   humanPromiseExtraTargets?: readonly string[];
@@ -1244,6 +1250,16 @@ const realSleep = (ms: number): Promise<void> => new Promise((resolve) => setTim
  * rodam antes de tomar conexão — ver o porquê no ponto da chamada.
  */
 export async function runBeforeSend(args: RunBeforeSendArgs): Promise<BeforeSendResult> {
+  const result = await runBeforeSendAttempt(args);
+  if (result.status === 'vetoed' && result.code === 'human_decision_context_changed') {
+    // A primeira transação/conexão já foi liberada. Nova inferência nunca segura o lock do número.
+    args.log.info('revisão refeita por mudança de contexto', { event:'human_decision_review_retry', attempts:1 });
+    return runBeforeSendAttempt(args);
+  }
+  return result;
+}
+
+async function runBeforeSendAttempt(args: RunBeforeSendArgs): Promise<BeforeSendResult> {
   const gates = args.gates ?? BEFORE_SEND_GATES;
   // ANTES de tomar conexão, de propósito: preferência de estilo não precisa do
   // lock, e uma consulta que falha DENTRO da transação a deixa abortada — a
@@ -1308,6 +1324,7 @@ export async function runBeforeSend(args: RunBeforeSendArgs): Promise<BeforeSend
 
     // Estado confiável carregado SOB o lock (os contadores de cap/janela de copies
     // são racy — precisam ver o que o worker anterior já efetivou).
+    const humanDecision = await args.validateHumanDecision?.(client, bodyDoModelo, semanticPromise);
     const provider = await loadChannelProvider(client, args.tenantId, args.channelSessionId);
     if (
       args.meetingDelivery &&
@@ -1418,6 +1435,8 @@ export async function runBeforeSend(args: RunBeforeSendArgs): Promise<BeforeSend
       lgpd: args.lgpd !== undefined ? { ...args.lgpd, isFirstOutbound } : null,
       casesEnabled: args.casesEnabled ?? false,
       hasOpenCase: args.hasOpenCase ?? false,
+      humanDecisionValidated: humanDecision === "valid",
+      humanDecisionStale: humanDecision === "stale",
       openedCaseThisTurn: args.openedCaseThisTurn ?? false,
       ...(args.humanPromiseExtraTargets !== undefined
         ? { humanPromiseExtraTargets: args.humanPromiseExtraTargets }
@@ -1493,6 +1512,15 @@ export async function runBeforeSend(args: RunBeforeSendArgs): Promise<BeforeSend
     // ctx.body é o corpo FINAL (emendado pelo disclosureGate F4-05 quando aplicável).
     if (args.approvedReply && ctx.body !== args.body)
       throw new Error('reply_body_changed_reapproval_required');
+    if (args.validateHumanDecision && humanDecision !== 'not_eligible' &&
+      await args.validateHumanDecision(client, bodyDoModelo, semanticPromise) === 'stale') {
+      await client.query('rollback');
+      const lateVeto = { gate:'case_promise',code:'human_decision_context_changed',message:'A decisão mudou durante a preparação do envio; releia o caso.' };
+      trace.push({ gate:lateVeto.gate,verdict:'veto',code:lateVeto.code });
+      emitTrace(args.log,args.channelSessionId,trace.slice(-1));
+      await persistTrace(args,trace,lateVeto);
+      return { status:'vetoed', trace, gate:'case_promise', code:'human_decision_context_changed', message:'A decisão mudou durante a preparação do envio; releia o caso.' };
+    }
     const outcome = await args.send(ctx.body);
 
     // Registra pacing + copy SÓ no envio físico fresco ('sent'). 'already_sent'/'queued'

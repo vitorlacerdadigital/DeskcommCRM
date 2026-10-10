@@ -21,6 +21,8 @@
  * organization_id/contact_id vêm da ROW do job (closure do run), nunca do payload (regra dura 1).
  */
 import type pg from "pg";
+import { pacoteFactualDaRevisao, INSTRUCAO_REPASSE, temDecisaoElegivel } from "./contrato-contexto";
+import type { ContextoDeDecisaoHumana } from "../../agent/contexto-de-decisao-humana";
 
 import type { Logger } from "../../obs/logger";
 import type { ProviderRegistry } from "../../edge/llm/providers";
@@ -39,6 +41,8 @@ import { carregarBinding } from "../../edge/llm/binding-do-ponto";
 /** Veredito binário do classificador. suspectPhrase = null quando isPromise = false. */
 export interface PromiseClassification {
   isPromise: boolean;
+  /** Positivo fechado; só tem efeito junto da prova interna relida pelo servidor. */
+  repasseConcluidoFiel?: boolean;
   /** trecho literal da candidata que caracteriza a promessa (só quando isPromise=true). */
   suspectPhrase: string | null;
   /**
@@ -175,6 +179,7 @@ export function parsePromiseClassification(
     suspectPhrase: isPromise && rawPhrase !== "" ? rawPhrase : null,
     prometeuRetornoHumano,
     retornoSoDoAssistente,
+    ...(Object.hasOwn(obj, 'repasseConcluidoFiel') ? { repasseConcluidoFiel: obj.repasseConcluidoFiel === true } : {}),
     ...diagnostic,
   };
 }
@@ -190,6 +195,7 @@ export async function classifyPromise(
   ids: { tenantId: string; leadId?: string | null; jobId?: string },
   args: {
     candidate: string;
+    humanDecisionContext?: ContextoDeDecisaoHumana;
     model?: string;
     llmOverride?: LlmResolveOverride;
     /** Somente evidências recolhidas das consultas reais do servidor neste turno. */
@@ -215,18 +221,12 @@ export async function classifyPromise(
       purpose: "promise_semantic",
       ...(args.model !== undefined ? { model: args.model } : {}),
       ...(args.llmOverride !== undefined ? { llmOverride: args.llmOverride } : {}),
-      ...(args.commercialEvidence?.length ? { system: INSTRUCAO_COM_EVIDENCIAS } : {}),
-      messages: args.commercialEvidence?.length
+      system: (args.commercialEvidence?.length ? INSTRUCAO_COM_EVIDENCIAS : PROMISE_SEMANTIC_INSTRUCTION) + INSTRUCAO_REPASSE,
+      messages: args.commercialEvidence?.length || args.conversationContext || args.humanDecisionContext
         ? [
             {
               role: "user",
-              content: JSON.stringify({
-                mensagem: args.candidate,
-                evidencias: args.commercialEvidence,
-                ...(args.conversationContext
-                  ? { contexto_conversa: args.conversationContext }
-                  : {}),
-              }),
+              content: JSON.stringify(pacoteFactualDaRevisao(args)),
             },
           ]
         : [{ role: "user", content: buildPromiseMessage(args.candidate) }],
@@ -236,6 +236,7 @@ export async function classifyPromise(
   // O parser recebe a CANDIDATA para poder degradar `prometeuRetornoHumano` pelo
   // veredito do léxico (a assimetria está documentada no corpo do parser).
   const initial = parsePromiseClassification(call.result.text, args.candidate, deps.log);
+  if (args.humanDecisionContext) initial.repasseConcluidoFiel = temDecisaoElegivel(args) && initial.repasseConcluidoFiel === true;
   if (!initial.prometeuRetornoHumano) return initial;
   try {
     const binding = await (deps.loadHumanReturnBinding ?? carregarBinding)(
@@ -254,15 +255,11 @@ export async function classifyPromise(
         ...(ids.jobId !== undefined ? { jobId: ids.jobId } : {}),
         purpose: "human_return_confirmation",
         // O seam resolve o binding deste ponto; não herda modelo do agente.
-        system: CONFIRMAR_RETORNO_INSTRUCTION,
+        system: CONFIRMAR_RETORNO_INSTRUCTION + INSTRUCAO_REPASSE,
         messages: [
           {
             role: "user",
-            content: JSON.stringify({
-              mensagem: args.candidate,
-              evidencias: args.commercialEvidence ?? [],
-              ...(args.conversationContext ? { contexto_conversa: args.conversationContext } : {}),
-            }),
+            content: JSON.stringify(pacoteFactualDaRevisao(args)),
           },
         ],
       },
@@ -286,6 +283,7 @@ export async function classifyPromise(
     });
     return {
       isPromise: initial.isPromise,
+      ...(args.humanDecisionContext ? { repasseConcluidoFiel: temDecisaoElegivel(args) && checked.repasseConcluidoFiel === true } : {}),
       suspectPhrase: initial.suspectPhrase,
       prometeuRetornoHumano: checked.prometeuRetornoHumano,
       retornoSoDoAssistente: checked.prometeuRetornoHumano && checked.retornoSoDoAssistente,

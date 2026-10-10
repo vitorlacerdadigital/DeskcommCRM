@@ -624,6 +624,7 @@ const corpoDoPatch = z
     aceite_contexto_roteador: z.literal(true).optional(),
     contexto_revisao: z.boolean().optional(),
     aceite_contexto_revisao: z.literal(true).optional(),
+    versao_contexto_revisao: z.union([z.literal(1), z.literal(2)]).optional(),
     tarefa: idDaTarefaSchema.optional(),
     estado: z.enum(ESTADOS_DA_TAREFA).optional(),
   })
@@ -639,6 +640,9 @@ const corpoDoPatch = z
   })
   .refine((c) => c.aceite_contexto_revisao === undefined || c.contexto_revisao === true, {
     message: "aceite de revisão exige ativar o contexto da revisão",
+  })
+  .refine((c) => c.versao_contexto_revisao === undefined || c.contexto_revisao === true, {
+    message: "versão do aceite exige ativar o contexto da revisão",
   })
   .refine((c) => c.ligado !== undefined || c.modo !== undefined || c.modo_roteador !== undefined || c.tarefa !== undefined || c.contexto_roteador !== undefined || c.contexto_revisao !== undefined, {
     message: "informe `ligado`, `modo`, `modo_roteador`, `tarefa` ou `contexto_roteador`",
@@ -745,11 +749,13 @@ export async function PATCH(req: NextRequest): Promise<Response> {
     mudanca.contexto_roteador = null;
   }
 
-  if (corpo.contexto_revisao === true && atual.contexto_revisao == null) {
+  const versaoRevisao = corpo.versao_contexto_revisao ?? 1;
+  if (corpo.contexto_revisao === true && (atual.contexto_revisao == null ||
+      (versaoRevisao === 2 && atual.contexto_revisao.versao === 1))) {
     if (corpo.aceite_contexto_revisao !== true) {
       return fail("jev_exige_aceite", t("Para revisar com o Jev, confirme o envio da resposta, das evidências consultadas e do contexto da conversa à TypeSafe AI."), 422, { requestId });
     }
-    mudanca.contexto_revisao = { em: new Date().toISOString(), por: user.id, versao: 1 };
+    mudanca.contexto_revisao = { em: new Date().toISOString(), por: user.id, versao: versaoRevisao };
   } else if (corpo.contexto_revisao === false && atual.contexto_revisao != null) {
     mudanca.contexto_revisao = null;
   }
@@ -803,6 +809,8 @@ export async function PATCH(req: NextRequest): Promise<Response> {
         : {}),
       ...(mudanca.contexto_revisao !== undefined ? {
         contexto_revisao: mudanca.contexto_revisao !== null,
+        contexto_revisao_versao: mudanca.contexto_revisao?.versao ?? null,
+        contexto_revisao_versao_anterior: atual.contexto_revisao?.versao ?? null,
         contexto_revisao_anterior: atual.contexto_revisao != null,
         aceite_revisao_registrado: mudanca.contexto_revisao !== null,
       } : {}),

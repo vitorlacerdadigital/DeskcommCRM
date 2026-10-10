@@ -8,7 +8,8 @@ import type { EvidenciaComercial } from "@/lib/agent-engine/guardrails/promise/e
 import type { ContextoDaRevisao } from "@/lib/agent-engine/guardrails/promise/contexto-da-revisao";
 import { PERGUNTA_COMERCIAL_COM_EVIDENCIAS, PERGUNTA_COMERCIAL_SEM_EVIDENCIA, PERGUNTA_RETORNO_SEM_FORMATO } from "@/lib/agent-engine/guardrails/promise/instrucoes";
 import { decidirRevisao, SINAIS_DA_REVISAO, type ProbabilidadesDaRevisao, type SinalDaRevisao } from "@/lib/agent-engine/guardrails/promise/decisao-do-jev";
-import { scrubMessage } from "@/lib/sentry/scrub";
+import { pacoteFactualDaRevisao, INSTRUCAO_REPASSE, temDecisaoElegivel } from "@/lib/agent-engine/guardrails/promise/contrato-contexto";
+import type { ContextoDeDecisaoHumana } from "@/lib/agent-engine/agent/contexto-de-decisao-humana";
 import { MODELO_DO_JEV, type Pergunta, type ResultadoDaDecisao } from "./cliente";
 import { podeTentar, registrarFalha, registrarSucesso } from "./disjuntor";
 import { decidirNoPonto } from "./ponto";
@@ -17,6 +18,7 @@ import { estadoEfetivoDaTarefa, TAREFA_DA_REVISAO_DE_RESPOSTA } from "./tarefas"
 
 export interface PacoteDaRevisao {
   candidate: string;
+  humanDecisionContext?: ContextoDeDecisaoHumana;
   commercialEvidence?: readonly EvidenciaComercial[];
   conversationContext?: ContextoDaRevisao;
 }
@@ -30,21 +32,17 @@ export interface DependenciasDaRevisao {
 
 /** Mesmos conteúdos consultados, sem IDs empresariais; só PII reconhecida é ocultada. */
 export function pacoteParaJev(p: PacoteDaRevisao): Record<string, unknown> {
-  const pacote = {
-    mensagem: p.candidate,
-    evidencias: (p.commercialEvidence ?? []).map(e => ({ titulo: e.titulo, conteudo: e.conteudo, origem: e.origem })),
-    ...(p.conversationContext ? { contexto_conversa: p.conversationContext } : {}),
-  };
-  return JSON.parse(scrubMessage(JSON.stringify(pacote))) as Record<string, unknown>;
+  return pacoteFactualDaRevisao(p);
 }
 
-export function perguntasDaRevisao(temEvidencias: boolean): Record<SinalDaRevisao, Pergunta> {
+export function perguntasDaRevisao(temEvidencias: boolean, temDecisao = false): Record<Exclude<SinalDaRevisao, 'repasse'>, Pergunta> & { repasse?: Pergunta } {
   // Cada noul recebe só sua regra, sem o formato JSON do revisor LLM.
   // As duas primeiras regras são compartilhadas, não uma política paralela.
   return {
+    ...(temDecisao ? { repasse: { tipo:"noul" as const, instrucao:INSTRUCAO_REPASSE, criterios:{ true:"A candidata inteira repassa fielmente a decisão humana elegível, sem nova promessa.", false:"Sem decisão suficiente, fora do escopo, dúvida ou promessa adicional." } } } : {}),
     comercial: {
       tipo: "noul",
-      instrucao: temEvidencias ? PERGUNTA_COMERCIAL_COM_EVIDENCIAS : PERGUNTA_COMERCIAL_SEM_EVIDENCIA,
+      instrucao: (temEvidencias ? PERGUNTA_COMERCIAL_COM_EVIDENCIAS : PERGUNTA_COMERCIAL_SEM_EVIDENCIA) + (temDecisao ? INSTRUCAO_REPASSE : ''),
       criterios: {
         true: "A candidata contém compromisso COMERCIAL concreto não autorizado pelas evidências.",
         false: "Não contém compromisso comercial não autorizado; oferta cadastrada e linguagem comercial natural podem passar.",
@@ -69,6 +67,7 @@ export function perguntasDaRevisao(temEvidencias: boolean): Record<SinalDaRevisa
 }
 
 function sinalDoVeredito(v: PromiseClassification, s: SinalDaRevisao): boolean {
+  if (s === "repasse") return v.repasseConcluidoFiel === true;
   if (s === "comercial") return v.isPromise;
   if (s === "retorno") return v.prometeuRetornoHumano;
   return v.prometeuRetornoHumano && v.retornoSoDoAssistente;
@@ -81,7 +80,7 @@ async function gravarRevisao(
   reserva: PromiseClassification | null, cobriu: boolean, log: Logger,
 ): Promise<void> {
   try {
-    const verificacoes = probabilidades ? SINAIS_DA_REVISAO.map(s => ({
+    const verificacoes = probabilidades ? SINAIS_DA_REVISAO.filter(s => probabilidades[s] !== undefined).map(s => ({
       probabilidade: probabilidades[s],
       confianca: Math.max(probabilidades[s], 1 - probabilidades[s]),
       rotulo: `${s}:${probabilidades[s] >= 0.5 ? "sim" : "nao"}`,
@@ -115,6 +114,10 @@ export async function revisarRespostaComJev(
 ): Promise<PromiseClassification> {
   const config = await (deps.lerConfig ?? configDaTarefaNoPool)(pool, ids.tenantId, TAREFA_DA_REVISAO_DE_RESPOSTA);
   const estado = estadoEfetivoDaTarefa(config, TAREFA_DA_REVISAO_DE_RESPOSTA);
+  if (pacote.humanDecisionContext && config.contexto_revisao?.versao !== 2) {
+    deps.log.info("reserva assume contexto ampliado", { event:"jev_review_fallback",motivo:"context_consent_version_insufficient" });
+    return reserva();
+  }
   if (estado === "desligada") return reserva();
   const alvo = { organizationId: ids.tenantId, tarefa: "promise_semantic" };
   if (!podeTentar(alvo)) {
@@ -127,7 +130,8 @@ export async function revisarRespostaComJev(
   try {
     r = await (deps.perguntar ?? decidirNoPonto)({
       organizationId: ids.tenantId, ponto: "promise_semantic",
-      estado: pacoteParaJev(pacote), perguntas: perguntasDaRevisao(Boolean(pacote.commercialEvidence?.length)),
+      ...(pacote.humanDecisionContext ? { versaoContextoRevisao:2 as const } : {}),
+      estado: pacoteParaJev(pacote), perguntas: perguntasDaRevisao(Boolean(pacote.commercialEvidence?.length), temDecisaoElegivel(pacote)),
     });
   } catch {
     r = { ok: false, motivo: "provedor_indisponivel", exigeAcao: false, defeitoNosso: false, status: null };
@@ -143,7 +147,7 @@ export async function revisarRespostaComJev(
     }
     return v;
   }
-  const calculo = decidirRevisao(r.respostas);
+  const calculo = decidirRevisao(r.respostas, temDecisaoElegivel(pacote));
   const modeloValido = r.modelo === MODELO_DO_JEV;
   if (calculo.motivo === "resposta_ilegivel" || !modeloValido) registrarFalha(alvo, "resposta_ilegivel", Date.now());
   else registrarSucesso(alvo);

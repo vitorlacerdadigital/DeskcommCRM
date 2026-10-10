@@ -121,7 +121,7 @@ export const configDoJevSchema = z
       .catch(null),
     /** Aceite próprio para candidata, evidências consultadas e contexto curado. */
     contexto_revisao: z.object({
-      em: z.string().datetime(), por: z.string().uuid(), versao: z.literal(1),
+      em: z.string().datetime(), por: z.string().uuid(), versao: z.union([z.literal(1),z.literal(2)]),
     }).nullable().optional().catch(null),
     alterado_em: z.string().datetime().optional(),
     alterado_por: z.string().uuid().optional(),

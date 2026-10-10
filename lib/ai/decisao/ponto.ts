@@ -47,6 +47,8 @@ interface EntradaComum {
   organizationId: string;
   estado: string | Record<string, unknown> | ReadonlyArray<unknown>;
   tetoMs?: number;
+  /** Exigência da projeção ampliada; nunca inferida do aceite do roteador. */
+  versaoContextoRevisao?: 2;
 }
 
 /**
@@ -68,6 +70,7 @@ export type EntradaDoPonto = EntradaComum &
 export interface DependenciasDoPonto {
   /** Resolve a chave do fornecedor PARA AQUELA organização. `null` = não configurado. */
   buscarChave?: (organizationId: string) => Promise<string | null>;
+  conferirContextoRevisao?: typeof contextoAmpliadoAutorizado;
   fetchImpl?: typeof fetch;
   /** Base da API. Default: `baseDaApiDoJev()`. A allowlist deriva dela. */
   baseUrl?: string;
@@ -105,6 +108,7 @@ export interface DependenciasDoPonto {
 export async function chaveDasTarefas(
   organizationId: string,
   tarefas: readonly TarefaDoJev[],
+  versaoContextoRevisao?: 2,
 ): Promise<string | null> {
   if (tarefas.length === 0) return null;
   try {
@@ -118,6 +122,7 @@ export async function chaveDasTarefas(
       .maybeSingle();
     if (orgErr) throw orgErr;
     const config = lerConfigDoJev(org?.settings);
+    if (versaoContextoRevisao === 2 && config.contexto_revisao?.versao !== 2) return null;
     if (tarefas.some((t) => estadoEfetivoDaTarefa(config, t) === "desligada")) return null;
 
     const { data, error } = await admin
@@ -195,6 +200,7 @@ export async function decidirNoPonto(
       return chaveDasTarefas(
         org,
         TAREFAS_DO_JEV.filter((t) => t.ponto === ponto || Object.hasOwn(perguntas, t.id)),
+        entrada.versaoContextoRevisao,
       );
     }
     const tarefas = tarefasDasPerguntas(perguntas);
@@ -220,12 +226,18 @@ export async function decidirNoPonto(
 
   const base = deps.baseUrl ?? baseDaApiDoJev();
   const allowlist = buildAllowlist([...(deps.hostsPermitidos ?? [base])]);
-  const fetchContido: typeof fetch = (input, init) =>
-    allowlistedFetch(
+  const fetchContido: typeof fetch = async (input, init) => {
+    if (entrada.versaoContextoRevisao === 2 &&
+      !(await (deps.conferirContextoRevisao ?? contextoAmpliadoAutorizado)(entrada.organizationId))) {
+      logger.warn("contexto ampliado da revisão não autorizado", { event: "context_consent_version_insufficient" });
+      throw new Error("context_consent_version_insufficient");
+    }
+    return allowlistedFetch(
       typeof input === "string" || input instanceof URL ? input : input.url,
       init,
       { allowlist, fetchImpl: deps.fetchImpl, log: logger },
     );
+  };
 
   return decidir(
     {
@@ -237,4 +249,15 @@ export async function decidirNoPonto(
     },
     { fetchImpl: fetchContido, baseUrl: base },
   );
+}
+
+/** Última checagem antes da rede: cobre revogação durante a busca da chave. */
+async function contextoAmpliadoAutorizado(organizationId: string): Promise<boolean> {
+  try {
+    const { data, error } = await createAdminClient().from("organizations").select("settings").eq("id",organizationId).maybeSingle();
+    if (error) return false;
+    const c=lerConfigDoJev(data?.settings);
+    const task=TAREFAS_DO_JEV.find(t=>t.id==="revisao_resposta");
+    return !!task && c.contexto_revisao?.versao===2 && estadoEfetivoDaTarefa(c,task)!=="desligada";
+  } catch { return false; }
 }

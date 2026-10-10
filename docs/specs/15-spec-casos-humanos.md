@@ -309,3 +309,15 @@ Cada wave do plano (§writing-plans) carrega esse gate embutido: build → prova
 5. Audit log emitido nas mutações; rate limit + Zod na rota pública; sem `console.log`.
 6. `cases_enabled` documentado; `lib/database.types.ts` regenerado.
 7. Um staff engineer aprovaria? Se não, itera.
+
+## 13. Proveniência da resposta humana e contexto de revisão
+
+A rota autenticada conserva `requireSupportWrite()` e `requireRole("agent")`. Para `resolved` e `need_lead_info`, gera o ID de `human_replied`, executa a transição condicional, enfileira `case_reply_turn` e liga evento/job na mesma transação. `metadata.review_context_v1` registra versão, origem autenticada, papel verificado e job; não aceita autoridade/autor por body. Não há tabela paralela de aprovações nem permissão de escrita do Data API sobre eventos.
+
+O handler usa o payload como ponteiro e relê evento, Caso, conversa, contato e fronteira. A nota vem do evento persistido. Outro job não pode reutilizar um evento já ligado. Legado só é correlacionado com correspondência única de Caso/ação/nota e fronteira comprovável; CAS reserva o evento para um job sem fabricar papel histórico. Ausência, empate, revogação, expiração ou atendimento obsoleto não autorizam reentrada.
+
+`carregarContextoDeDecisaoHumana` agrupa três leituras: fronteira; decisões de Casos/pedido original; pedido atual e política de revisão. Um evento resolvido autenticado, pedido original por ponteiro e fronteira válida podem sustentar a prova interna. A semântica ainda precisa comprovar a fidelidade de toda a candidata ao mesmo objeto/beneficiário/data/condições. Notas vagas e mera autorização de tentar/executar não provam conclusão. `need_lead_info` informa a pergunta, sem receber exceção positiva.
+
+O pacote factual comum chega ao agente, reserva, JEV autorizado e confirmador com minimização. Antes do efeito, a fotografia é relida sob transação; alteração da nota/estado fica bloqueada até terminar esse efeito. Mudança de contexto exige nova revisão, limitada a uma tentativa fora do lock. Uma reentrada já ligada ao Caso que permanece vetada registra pendência e não abre automaticamente outra cópia do mesmo Caso. O histórico de entrega e a expansão das fontes continuam pertencendo às suas próprias etapas.
+
+Provas novas: `tests/invariants/revisor-contexto-casos.test.ts` e `lib/agent-engine/guardrails/promise/contrato-contexto.test.ts`; regressões dos Casos permanecem separadas. A instrução histórica sobre MANIFEST na seção anterior é substituída pela doutrina atual do repositório: migration nova usa `-- manifest:` e baseline idempotente, sem editar o MANIFEST histórico. Este recorte reutiliza metadata e grants existentes e não altera schema.

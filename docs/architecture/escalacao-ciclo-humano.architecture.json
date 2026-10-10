@@ -88,7 +88,7 @@
       "col": 2,
       "type": "api",
       "label": "POST /ai/cases/:id/reply",
-      "sublabel": "a decisão da PESSOA (actor_kind='human')"
+      "sublabel": "decisão autenticada da pessoa; transição + human_replied + job + proveniência no mesmo commit"
     },
     {
       "id": "reactivate",

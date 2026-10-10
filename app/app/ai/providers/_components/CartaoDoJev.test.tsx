@@ -1636,12 +1636,27 @@ describe("CartaoDoJev — o aviso da área da saúde (DEC-012 #2)", () => {
 
 
 describe("autorização e probabilidades da revisão",()=>{
+  it("v1 permanece sem upgrade automático; cancelar diálogo não escreve e v2 exibe o quarto sinal",async()=>{
+    montar(dados({config:{contexto_revisao:{em:"2026-10-09T12:00:00Z",por:"admin",versao:1}},ultima_revisao:[{sinal:"repasse",probabilidade:0.95,em:"agora"}]}));
+    expect(chamadas).toHaveLength(0);
+    expect(screen.getByTestId("jev-contexto-revisao")).toHaveTextContent("A IA de reserva assume esses casos.");
+    expect(screen.getByTestId("jev-revisao-repasse")).toHaveTextContent("95%");
+    fireEvent.click(screen.getByRole("button",{name:"Autorizar contexto ampliado"}));
+    const dialog=screen.getByRole("alertdialog");
+    expect(dialog).toHaveTextContent("decisões humanas registradas em Casos");
+    expect(dialog).toHaveTextContent("Notas humanas podem conter dados pessoais e condições comerciais");
+    fireEvent.click(within(dialog).getByRole("button",{name:"Cancelar"}));
+    expect(chamadas).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button",{name:"Autorizar contexto ampliado"}));
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button",{name:"Autorizar contexto da revisão"}));
+    await waitFor(()=>expect(chamadas[0]?.corpo).toEqual({contexto_revisao:true,aceite_contexto_revisao:true,versao_contexto_revisao:2}));
+  });
   it("exige diálogo próprio antes de enviar aceite de revisão",async()=>{
     montar(dados({config:{contexto_revisao:null}}));
     fireEvent.click(screen.getByRole("button",{name:"Autorizar contexto da revisão"}));
     const dialog=screen.getByRole("alertdialog");expect(dialog).toHaveTextContent("trechos da base e do catálogo");
     fireEvent.click(within(dialog).getByRole("button",{name:"Autorizar contexto da revisão"}));
-    await waitFor(()=>expect(chamadas[0]?.corpo).toEqual({contexto_revisao:true,aceite_contexto_revisao:true}));
+    await waitFor(()=>expect(chamadas[0]?.corpo).toEqual({contexto_revisao:true,aceite_contexto_revisao:true,versao_contexto_revisao:2}));
   });
   it("revogação não desliga o roteador e mostra porcentagens de sim",async()=>{
     montar(dados({config:{contexto_revisao:{em:"2026-10-09T12:00:00Z",por:"admin",versao:1}},ultima_revisao:[{sinal:"comercial",probabilidade:0.03,em:"agora"},{sinal:"retorno",probabilidade:0.92,em:"agora"},{sinal:"so_assistente",probabilidade:0.37,em:"agora"}]}));

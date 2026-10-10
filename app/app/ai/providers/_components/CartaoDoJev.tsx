@@ -59,7 +59,7 @@ export interface DadosDoJev {
     modo_roteador?: "comparacao" | "sob_demanda";
     aceite: { em: string; por: string } | null;
     contexto_roteador?: { em: string; por: string; versao: 1 | 2 } | null;
-    contexto_revisao?: { em: string; por: string; versao: 1 } | null;
+    contexto_revisao?: { em: string; por: string; versao: 1 | 2 } | null;
   };
   tarefas: Array<{ id: string; rotulo: string; oQueOJevFaz: string }>;
   /**
@@ -556,7 +556,7 @@ function ContextoDaRevisao({ dados, recarregar }: { dados: DadosDoJev; recarrega
   const autorizado = dados.config.contexto_revisao != null;
   const pct = new Intl.NumberFormat(tag, { style: "percent", maximumFractionDigits: 1 });
   const rotulos: Record<string, string> = {
-    comercial: "Oferta comercial não autorizada", retorno: "Compromisso de retorno", so_assistente: "Retorno só da IA",
+    comercial: "Oferta comercial não autorizada", retorno: "Compromisso de retorno", so_assistente: "Retorno só da IA", repasse: "Repasse fiel de decisão humana",
   };
   return <div className="mt-4 space-y-2 border-t border-border pt-3" data-testid="jev-contexto-revisao">
     <p className="text-sm font-medium">{t("Contexto para revisar ofertas e retornos")}</p>
@@ -570,13 +570,14 @@ function ContextoDaRevisao({ dados, recarregar }: { dados: DadosDoJev; recarrega
     {dados.pode_editar && <Button size="sm" variant="outline" disabled={enviando} onClick={() => autorizado
       ? void mudar({ contexto_revisao: false }, t("O contexto da revisão foi desativado."))
       : setConfirmando(true)}>{autorizado ? t("Desativar contexto da revisão") : t("Autorizar contexto da revisão")}</Button>}
+    {dados.config.contexto_revisao?.versao === 1 && <><p className="text-xs text-muted-foreground">{t("A autorização anterior não inclui decisões humanas e contexto ampliado. A IA de reserva assume esses casos.")}</p>{dados.pode_editar && <Button size="sm" variant="outline" disabled={enviando} onClick={() => setConfirmando(true)}>{t("Autorizar contexto ampliado")}</Button>}</>}
     <AlertDialog open={confirmando} onOpenChange={setConfirmando}>
       <AlertDialogContent><AlertDialogHeader>
         <AlertDialogTitle>{t("Autorizar contexto da revisão?")}</AlertDialogTitle>
-        <AlertDialogDescription>{t("Você autoriza enviar à TypeSafe AI, nos Estados Unidos, a resposta candidata, os trechos da base e do catálogo consultados neste turno e o contexto curado da conversa, incluindo resumo e mensagens do cliente e dos atendentes. Telefones, e-mails e CPFs reconhecidos são ocultados; outros dados podem permanecer. Esta autorização serve apenas à revisão de ofertas e compromissos de retorno, não liga o Jev nem ativa a tarefa. Você pode revogá-la quando quiser.")}</AlertDialogDescription>
+        <AlertDialogDescription>{t("Você autoriza enviar à TypeSafe AI, nos Estados Unidos, a resposta candidata, os trechos da base e do catálogo consultados neste turno e o contexto curado da conversa, incluindo resumo e mensagens do cliente e dos atendentes, decisões humanas registradas em Casos, pedido atual e sua continuidade, perfil pertinente e recibos de operações quando disponíveis. Notas humanas podem conter dados pessoais e condições comerciais. Telefones, e-mails e CPFs reconhecidos são ocultados; outros dados podem permanecer. Esta autorização serve apenas à revisão de ofertas e compromissos de retorno, não liga o Jev nem ativa a tarefa. Você pode revogá-la quando quiser.")}</AlertDialogDescription>
       </AlertDialogHeader><AlertDialogFooter>
         <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
-        <AlertDialogAction disabled={enviando} onClick={() => void mudar({ contexto_revisao: true, aceite_contexto_revisao: true }, t("O contexto da revisão foi autorizado."))}>{t("Autorizar contexto da revisão")}</AlertDialogAction>
+        <AlertDialogAction disabled={enviando} onClick={() => void mudar({ contexto_revisao: true, aceite_contexto_revisao: true, versao_contexto_revisao: 2 }, t("O contexto da revisão foi autorizado."))}>{t("Autorizar contexto da revisão")}</AlertDialogAction>
       </AlertDialogFooter></AlertDialogContent>
     </AlertDialog>
   </div>;

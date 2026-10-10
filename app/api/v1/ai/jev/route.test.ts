@@ -1348,6 +1348,31 @@ describe("modo JEV com reserva sob demanda", () => {
 
 
 describe("contexto específico da revisão de resposta", () => {
+  it("v1 não se amplia ao ativar tarefa ou repetir o aceite antigo; upgrade explícito v2 é auditado",async()=>{
+    estado.settings.jev={ligado:true,aceite:ACEITE_ANTIGO,contexto_revisao:{...ACEITE_ANTIGO,versao:1}};
+    expect((await mudar({tarefa:"revisao_resposta",estado:"decidindo"})).status).toBe(200);
+    expect((estado.settings.jev as Linha).contexto_revisao).toMatchObject({versao:1});
+    expect((await mudar({contexto_revisao:true,aceite_contexto_revisao:true})).status).toBe(200);
+    expect((estado.settings.jev as Linha).contexto_revisao).toMatchObject({versao:1});
+    expect((await mudar({contexto_revisao:true,versao_contexto_revisao:2})).status).toBe(422);
+    expect((await mudar({versao_contexto_revisao:2,aceite_contexto_revisao:true})).status).toBe(422);
+    expect((await mudar({contexto_revisao:true,versao_contexto_revisao:2,aceite_contexto_revisao:true})).status).toBe(200);
+    expect((estado.settings.jev as Linha).contexto_revisao).toMatchObject({versao:2,por:USUARIO});
+    expect(audit).toHaveBeenLastCalledWith(expect.objectContaining({organizationId:ORG,metadata:expect.objectContaining({contexto_revisao_versao:2,contexto_revisao_versao_anterior:1})}));
+  });
+  it.each(["viewer","agent","manager"] as const)("%s não autoriza categorias ampliadas",async role=>{
+    papel=role;
+    expect((await mudar({contexto_revisao:true,versao_contexto_revisao:2,aceite_contexto_revisao:true})).status).toBe(403);
+    expect(audit).not.toHaveBeenCalled();
+  });
+  it("revoga v2 sem afetar o roteador, outras tarefas ou dados próprios",async()=>{
+    estado.settings.jev={ligado:true,aceite:ACEITE_ANTIGO,contexto_revisao:{...ACEITE_ANTIGO,versao:2},contexto_roteador:{...ACEITE_ANTIGO,versao:1}};
+    estado.settings.dado_proprio="preservar";
+    expect((await mudar({contexto_revisao:false})).status).toBe(200);
+    expect((estado.settings.jev as Linha).contexto_revisao).toBeNull();
+    expect((estado.settings.jev as Linha).contexto_roteador).toMatchObject({versao:1});
+    expect(estado.settings.dado_proprio).toBe("preservar");
+  });
   it("não herda aceite do roteador nem aceita autorização desacompanhada", async () => {
     estado.settings.jev = { ligado:true, aceite:ACEITE_ANTIGO, contexto_roteador:{...ACEITE_ANTIGO,versao:2} };
     expect((await mudar({tarefa:"revisao_resposta",estado:"decidindo"})).status).toBe(422);

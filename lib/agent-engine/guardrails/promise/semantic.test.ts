@@ -81,7 +81,7 @@ it("leva a oferta completa na mesma chamada e mantém promessa adicional visíve
   }
   expect(JSON.parse(request.messages[0]!.content as string)).toEqual({
     mensagem: candidate,
-    evidencias: e.ler(),
+    evidencias: e.ler().map(({ titulo,conteudo,origem })=>({ titulo,conteudo,origem })),
   });
   // Ter evidência não substitui o veredito nem cria bypass no gate.
   expect(result).toEqual({

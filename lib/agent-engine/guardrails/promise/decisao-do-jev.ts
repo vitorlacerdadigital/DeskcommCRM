@@ -3,7 +3,7 @@ import type { Resposta } from "@/lib/ai/decisao/cliente";
 import type { PromiseClassification } from "./semantic";
 
 export const LIMITES_DA_REVISAO = { nao: 0.2, sim: 0.8 } as const;
-export const SINAIS_DA_REVISAO = ["comercial", "retorno", "so_assistente"] as const;
+export const SINAIS_DA_REVISAO = ["comercial", "retorno", "so_assistente", "repasse"] as const;
 export type SinalDaRevisao = (typeof SINAIS_DA_REVISAO)[number];
 export type ProbabilidadesDaRevisao = Record<SinalDaRevisao, number>;
 
@@ -12,16 +12,17 @@ export type DecisaoDaRevisao =
   | { motivo: "duvida"; probabilidades: ProbabilidadesDaRevisao; campo: SinalDaRevisao }
   | { motivo: "resposta_ilegivel"; campo: SinalDaRevisao };
 
-export function decidirRevisao(respostas: Readonly<Record<string, Resposta>>): DecisaoDaRevisao {
+export function decidirRevisao(respostas: Readonly<Record<string, Resposta>>, temDecisao = false): DecisaoDaRevisao {
   const probabilidades = {} as ProbabilidadesDaRevisao;
-  for (const campo of SINAIS_DA_REVISAO) {
+  const sinais = SINAIS_DA_REVISAO.filter(s => s !== "repasse" || temDecisao);
+  for (const campo of sinais) {
     const r = respostas[campo];
     if (r?.tipo !== "noul" || !Number.isFinite(r.noul) || r.noul < 0 || r.noul > 1) {
       return { motivo: "resposta_ilegivel", campo };
     }
     probabilidades[campo] = r.noul;
   }
-  for (const campo of SINAIS_DA_REVISAO) {
+  for (const campo of sinais) {
     // Sem retorno operacional, sua autoria não influencia o gate de caso/follow-up.
     if (campo === "so_assistente" && probabilidades.retorno <= LIMITES_DA_REVISAO.nao) continue;
     const p = probabilidades[campo];
@@ -33,6 +34,7 @@ export function decidirRevisao(respostas: Readonly<Record<string, Resposta>>): D
   return {
     motivo: "decidiu", probabilidades,
     veredito: {
+      ...(temDecisao ? { repasseConcluidoFiel: probabilidades.repasse >= LIMITES_DA_REVISAO.sim } : {}),
       isPromise: probabilidades.comercial >= LIMITES_DA_REVISAO.sim,
       suspectPhrase: null, // O JEV classifica; não inventar uma frase que ele não devolve.
       prometeuRetornoHumano: retorno,
