@@ -339,27 +339,41 @@ export async function classifyPromise(
   if (!initial.prometeuRetornoHumano) return initial;
   try {
     const binding = await (deps.loadHumanReturnBinding ?? carregarBinding)(
-      db, ids.tenantId, "human_return_confirmation",
+      db,
+      ids.tenantId,
+      "human_return_confirmation",
     );
     // Sem escolha explícita, conserva a revisão existente sem chamada extra.
-    if (!binding?.is_enabled) return initial;
-    const confirmation = await runModelCall(db, cfg, {
-      tenantId: ids.tenantId,
-      ...(ids.leadId != null ? { leadId: ids.leadId } : {}),
-      ...(ids.jobId !== undefined ? { jobId: ids.jobId } : {}),
-      purpose: "human_return_confirmation",
-      model: binding.model_id,
-      llmOverride: { provider: binding.provider, credentialId: binding.credential_id },
-      system: CONFIRMAR_RETORNO_INSTRUCTION,
-      messages: [{ role: "user", content: JSON.stringify({
-        mensagem: args.candidate,
-        evidencias: args.commercialEvidence ?? [],
-        ...(args.conversationContext ? { contexto_conversa: args.conversationContext } : {}),
-      }) }],
-    }, { registry: deps.registry, log: deps.log });
+    if (!binding?.is_enabled || binding.purpose !== "human_return_confirmation") return initial;
+    const confirmation = await runModelCall(
+      db,
+      cfg,
+      {
+        tenantId: ids.tenantId,
+        ...(ids.leadId != null ? { leadId: ids.leadId } : {}),
+        ...(ids.jobId !== undefined ? { jobId: ids.jobId } : {}),
+        purpose: "human_return_confirmation",
+        // O seam resolve o binding deste ponto; não herda modelo do agente.
+        system: CONFIRMAR_RETORNO_INSTRUCTION,
+        messages: [
+          {
+            role: "user",
+            content: JSON.stringify({
+              mensagem: args.candidate,
+              evidencias: args.commercialEvidence ?? [],
+              ...(args.conversationContext ? { contexto_conversa: args.conversationContext } : {}),
+            }),
+          },
+        ],
+      },
+      { registry: deps.registry, log: deps.log },
+    );
     const raw = extrairObjetoJsonDoTexto(confirmation.result.text);
-    if (!raw || typeof raw !== "object" ||
-        typeof (raw as Record<string, unknown>).prometeuRetornoHumano !== "boolean") {
+    if (
+      !raw ||
+      typeof raw !== "object" ||
+      typeof (raw as Record<string, unknown>).prometeuRetornoHumano !== "boolean"
+    ) {
       deps.log.warn("confirmação de retorno inválida — marcação inicial preservada", {
         event: "human_return_confirmation_invalid",
       });
@@ -367,7 +381,8 @@ export async function classifyPromise(
     }
     const checked = parsePromiseClassification(confirmation.result.text, args.candidate, deps.log);
     deps.log.info("confirmação de retorno humano concluída", {
-      event: "human_return_confirmed", confirmado: checked.prometeuRetornoHumano,
+      event: "human_return_confirmed",
+      confirmado: checked.prometeuRetornoHumano,
     });
     return {
       isPromise: initial.isPromise,

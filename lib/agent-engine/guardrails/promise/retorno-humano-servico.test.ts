@@ -196,7 +196,8 @@ it("um registro interno positivo segue ao gate sem segunda chamada nem veto come
   );
   expect(call).toHaveBeenCalledOnce();
   expect(query).toHaveBeenCalledWith(expect.stringContaining("organization_id = $1"), [
-    "org-do-servidor", "human_return_confirmation",
+    "org-do-servidor",
+    "human_return_confirmation",
   ]);
   expect(call.mock.calls[0]![2]).toMatchObject({
     purpose: "promise_semantic",
@@ -204,56 +205,103 @@ it("um registro interno positivo segue ao gate sem segunda chamada nem veto come
   });
   expect(result.isPromise).toBe(false);
   expect(result.retornoSoDoAssistente).toBe(false);
-  expect(casePromiseGate.evaluate({ ...ctx(candidate, false), semanticPromise: result }))
-    .toMatchObject({ pass: false, code: "case_promise_without_case" });
+  expect(
+    casePromiseGate.evaluate({ ...ctx(candidate, false), semanticPromise: result }),
+  ).toMatchObject({ pass: false, code: "case_promise_without_case" });
 });
 
 describe("segunda opinião configurável só de retorno humano", () => {
-  const original = { isPromise: true, suspectPhrase: "oferta não aprovada",
-    prometeuRetornoHumano: true, retornoSoDoAssistente: false };
-  const args = { candidate: "Quer que eu encaminhe para a equipe? Oferta não aprovada.",
-    commercialEvidence: [{ origem: "conhecimento" as const, referencia: "regra:teste",
-      titulo: "Regra", conteudo: "A equipe confirma disponibilidade." }],
-    conversationContext: { mensagens: [{ papel: "cliente" as const, texto: "Quero conhecer." }],
-      resumo: null, limitado: false, momento: "2026-10-09T19:00:00Z", fuso: "America/Sao_Paulo" } };
-  const binding = { purpose: "human_return_confirmation", provider: "provedor-do-teste",
-    credential_id: "credencial-do-teste", model_id: "modelo-confirmador", base_url: null, is_enabled: true };
+  const original = {
+    isPromise: true,
+    suspectPhrase: "oferta não aprovada",
+    prometeuRetornoHumano: true,
+    retornoSoDoAssistente: false,
+  };
+  const args = {
+    candidate: "Quer que eu encaminhe para a equipe? Oferta não aprovada.",
+    commercialEvidence: [
+      {
+        origem: "conhecimento" as const,
+        referencia: "regra:teste",
+        titulo: "Regra",
+        conteudo: "A equipe confirma disponibilidade.",
+      },
+    ],
+    conversationContext: {
+      mensagens: [{ papel: "cliente" as const, texto: "Quero conhecer." }],
+      resumo: null,
+      limitado: false,
+      momento: "2026-10-09T19:00:00Z",
+      fuso: "America/Sao_Paulo",
+    },
+  };
+  const binding = {
+    purpose: "human_return_confirmation",
+    provider: "provedor-do-teste",
+    credential_id: "credencial-do-teste",
+    model_id: "modelo-confirmador",
+    base_url: null,
+    is_enabled: true,
+  };
   async function evaluate(response: string | Error, enabled = true) {
-    call.mockResolvedValueOnce({ result: { text: JSON.stringify(original) } } as Awaited<ReturnType<typeof runModelCall>>);
-    if(response instanceof Error) call.mockRejectedValueOnce(response);
-    else call.mockResolvedValueOnce({ result: { text: response } } as Awaited<ReturnType<typeof runModelCall>>);
-    return classifyPromise({} as pg.Pool, {}, { tenantId: "org-do-servidor" }, args,
-      { log: createLogger(), loadHumanReturnBinding: async () => ({ ...binding, is_enabled: enabled }) });
+    call.mockResolvedValueOnce({ result: { text: JSON.stringify(original) } } as Awaited<
+      ReturnType<typeof runModelCall>
+    >);
+    if (response instanceof Error) call.mockRejectedValueOnce(response);
+    else
+      call.mockResolvedValueOnce({ result: { text: response } } as Awaited<
+        ReturnType<typeof runModelCall>
+      >);
+    return classifyPromise({} as pg.Pool, {}, { tenantId: "org-do-servidor" }, args, {
+      log: createLogger(),
+      loadHumanReturnBinding: async () => ({ ...binding, is_enabled: enabled }),
+    });
   }
   it("confirma falso positivo sem modificar comercial nem reduzir o pacote recebido", async () => {
-    const result = await evaluate('{"prometeuRetornoHumano":false,"retornoSoDoAssistente":false,"isPromise":false}');
+    const result = await evaluate(
+      '{"prometeuRetornoHumano":false,"retornoSoDoAssistente":false,"isPromise":false}',
+    );
     expect(result).toEqual({ ...original, prometeuRetornoHumano: false });
     expect(call).toHaveBeenCalledTimes(2);
-    const second=call.mock.calls[1]![2];
-    expect(second).toMatchObject({ purpose: binding.purpose, model: binding.model_id,
-      tenantId: "org-do-servidor", llmOverride: { provider: binding.provider, credentialId: binding.credential_id } });
-    expect(JSON.parse(second.messages[0]!.content as string)).toEqual({ mensagem: args.candidate,
-      evidencias: args.commercialEvidence, contexto_conversa: args.conversationContext });
+    const second = call.mock.calls[1]![2];
+    expect(second).toMatchObject({ purpose: binding.purpose, tenantId: "org-do-servidor" });
+    expect(second.model).toBeUndefined();
+    expect(second.llmOverride).toBeUndefined();
+    expect(JSON.parse(second.messages[0]!.content as string)).toEqual({
+      mensagem: args.candidate,
+      evidencias: args.commercialEvidence,
+      contexto_conversa: args.conversationContext,
+    });
   });
   it("compromisso real continua positivo", async () => {
-    expect((await evaluate('{"prometeuRetornoHumano":true,"retornoSoDoAssistente":false}')).prometeuRetornoHumano).toBe(true);
+    expect(
+      (await evaluate('{"prometeuRetornoHumano":true,"retornoSoDoAssistente":false}'))
+        .prometeuRetornoHumano,
+    ).toBe(true);
   });
-  it.each(["sem JSON", "{}", '{"prometeuRetornoHumano":"false"}'])("saída inválida preserva a primeira marcação: %s", async raw => {
-    expect(await evaluate(raw)).toEqual(original);
-  });
+  it.each(["sem JSON", "{}", '{"prometeuRetornoHumano":"false"}'])(
+    "saída inválida preserva a primeira marcação: %s",
+    async (raw) => {
+      expect(await evaluate(raw)).toEqual(original);
+    },
+  );
   it("fornecedor/budget com falha preserva a primeira marcação sem repetição", async () => {
     expect(await evaluate(new Error("falha simulada"))).toEqual(original);
     expect(call).toHaveBeenCalledTimes(2);
   });
   it("binding desligado não dispara segunda leitura", async () => {
-    expect(await evaluate('{}', false)).toEqual(original);
+    expect(await evaluate("{}", false)).toEqual(original);
     expect(call).toHaveBeenCalledOnce();
   });
   it("primeiro sinal negativo não carrega confirmação", async () => {
-    call.mockResolvedValueOnce({ result: { text: '{"isPromise":false,"prometeuRetornoHumano":false}' } } as Awaited<ReturnType<typeof runModelCall>>);
-    const loader=vi.fn();
-    await classifyPromise({} as pg.Pool, {}, { tenantId: "org-do-servidor" }, args,
-      { log: createLogger(), loadHumanReturnBinding: loader });
+    call.mockResolvedValueOnce({
+      result: { text: '{"isPromise":false,"prometeuRetornoHumano":false}' },
+    } as Awaited<ReturnType<typeof runModelCall>>);
+    const loader = vi.fn();
+    await classifyPromise({} as pg.Pool, {}, { tenantId: "org-do-servidor" }, args, {
+      log: createLogger(),
+      loadHumanReturnBinding: loader,
+    });
     expect(loader).not.toHaveBeenCalled();
     expect(call).toHaveBeenCalledOnce();
   });
