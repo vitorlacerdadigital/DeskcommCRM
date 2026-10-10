@@ -165,7 +165,7 @@ it("mantém contexto/evidências e diagnósticos na mesma chamada do classificad
   const request = call.mock.calls[0]![2];
   expect(JSON.parse(request.messages[0]!.content as string)).toEqual({
     mensagem: candidate,
-    evidencias: commercialEvidence,
+    evidencias: commercialEvidence.map(({ origem, titulo, conteudo }) => ({ origem, titulo, conteudo })),
     contexto_conversa: conversationContext,
   });
   expect(request.system).toContain("humanReturnPhrase");
@@ -269,7 +269,7 @@ describe("segunda opinião configurável só de retorno humano", () => {
     expect(second.llmOverride).toBeUndefined();
     expect(JSON.parse(second.messages[0]!.content as string)).toEqual({
       mensagem: args.candidate,
-      evidencias: args.commercialEvidence,
+      evidencias: args.commercialEvidence.map(({ origem, titulo, conteudo }) => ({ origem, titulo, conteudo })),
       contexto_conversa: args.conversationContext,
     });
   });

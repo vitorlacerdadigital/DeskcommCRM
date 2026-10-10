@@ -3582,6 +3582,13 @@ async function executarTurnoDoAgente(
             },
           };
           let chain = await runBeforeSend(beforeSendArgs);
+          // Uma devolutiva já tem Caso: preservar pendência antes do fallback genérico.
+          if (input.humanCaseEventId && casePromiseVetoCount >= 1 &&
+              chain.status === 'vetoed' && chain.code === "case_promise_without_case") {
+            casePromiseVetoCount += 1;
+            runLog.info("repasse de caso aguarda revisão", { event:"case_reply_review_pending", case_event_id:input.humanCaseEventId });
+            return { ok:false, error:{ code:chain.code, message:"A conclusão não foi validada para repasse. Releia o contexto do caso e reformule sem acrescentar compromissos; não abra um caso duplicado." } };
+          }
           if (chain.status === 'vetoed' && chain.code === 'case_promise_without_case') {
             // Wave 4 — fail-safe da invariante sagrada: o lead NUNCA recebe promessa-de-
             // humano sem caso aberto. 1ª vez no turno: erro-de-ensino (o modelo re-tenta —
@@ -3590,10 +3597,6 @@ async function executarTurnoDoAgente(
             casePromiseVetoCount += 1;
             if (casePromiseVetoCount < 2) {
               return { ok: false, error: { code: chain.code, message: chain.message } };
-            }
-            if (input.humanCaseEventId) {
-              runLog.info("repasse de caso aguarda revisão", { event:"case_reply_review_pending", case_event_id:input.humanCaseEventId });
-              return { ok:false, error:{ code:chain.code, message:"A conclusão não foi validada para repasse. Releia o contexto do caso e reformule sem acrescentar compromissos; não abra um caso duplicado." } };
             }
             const auto = await openCase(
               pool,
