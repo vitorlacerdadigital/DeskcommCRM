@@ -163,7 +163,7 @@ describe('laços persistidos e falhas adversas',()=>{
   });
   it('migration idempotente preserva captura e vocabulário já gravados',async()=>{
     const f=await seed();await enable(f);await capture(f);await pool.query(`insert into agent_inbox_items(organization_id,kind,severity,title,body) values($1,'review_capture_stopped','warn','Fixture','Fixture')`,[f.org]);
-    await pool.query(readFileSync('supabase/migrations/20261011013200_0641_comunicacao_e_diagnostico_da_revisao.sql','utf8'));
+    await pool.query(readFileSync('supabase/migrations/20261011041412_0645_comunicacao_e_diagnostico_da_revisao.sql','utf8'));
     expect((await pool.query('select count(*)::int as n from review_capture_records where organization_id=$1',[f.org])).rows[0].n).toBe(1);expect((await pool.query('select kind from agent_inbox_items where organization_id=$1',[f.org])).rows[0].kind).toBe('review_capture_stopped');
   });
 });
@@ -236,5 +236,23 @@ describe('Captura exige a porta auditada; RLS não serve tabelas diretamente',()
       }
     }finally{await db.query('rollback');await db.query('reset role');db.release();}
     expect((await pool.query("select has_table_privilege('authenticated','review_capture_records','SELECT') as allowed")).rows[0].allowed).toBe(false);
+  });
+});
+
+
+describe('A janela de captura nasce de um unico instante',()=>{
+  it('nao depende da ordem de avaliacao de defaults volateis nem relaxa as duas horas',async()=>{
+    const f=await seed(),db=await pool.connect();
+    try{
+      await db.query('begin');
+      // Controle deterministico do defeito: o default captura o inicio e demora antes do prazo.
+      await db.query(`create function pg_temp.capture_delayed_default() returns timestamptz language plpgsql as $$
+        declare instant timestamptz:=clock_timestamp(); begin perform pg_sleep(0.02); return instant; end $$`);
+      await db.query('alter table review_capture_sessions alter column created_at set default pg_temp.capture_delayed_default()');
+      const result=(await db.query("select fn_review_capture_manage($1,$2,'enable',$3,'job') as data",[f.org,f.actor,f.job])).rows[0].data;
+      expect(result).toMatchObject({enabled:true,session_id:expect.any(String)});
+      const row=(await db.query('select extract(epoch from collect_until-created_at)::int as seconds,last_purged_at=created_at as same_instant from review_capture_sessions where id=$1',[result.session_id])).rows[0];
+      expect(row).toEqual({seconds:7200,same_instant:true});
+    }finally{await db.query('rollback');db.release();}
   });
 });

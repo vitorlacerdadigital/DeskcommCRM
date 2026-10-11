@@ -149,7 +149,7 @@ const DECISOES: Record<string, Decisao> = {
   review_capture_records: {
     decidida: "redigir",
     caminho: "gatilho",
-    razao: "0641: fn_review_capture_anonymized APAGA o conteúdo temporário na virada de is_anonymized, nos dois caminhos; o mesmo gatilho encerra a coleta sem renovar retenção.",
+    razao: "0645: fn_review_capture_anonymized APAGA o conteúdo temporário na virada de is_anonymized, nos dois caminhos; o mesmo gatilho encerra a coleta sem renovar retenção.",
   },
   review_capture_sessions: {
     decidida: "manter",

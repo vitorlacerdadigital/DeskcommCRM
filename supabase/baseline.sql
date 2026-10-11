@@ -50768,7 +50768,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS case_communication_one_notice ON public.agent_
 CREATE OR REPLACE FUNCTION public.fn_review_capture_manage(p_org uuid,p_actor uuid,p_action text,
   p_scope uuid DEFAULT NULL,p_kind text DEFAULT NULL,p_session uuid DEFAULT NULL,p_support jsonb DEFAULT NULL)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
-DECLARE sid uuid; scope_contact uuid; result jsonb; n bigint;
+DECLARE sid uuid; scope_contact uuid; result jsonb; n bigint; ts timestamptz;
 BEGIN
   IF p_actor IS NULL OR p_action NOT IN('enable','revoke','status','read') THEN RETURN NULL; END IF;
   IF p_action IN('enable','revoke') AND p_support IS NOT NULL AND p_support->>'access_mode' IS DISTINCT FROM 'full' THEN RETURN NULL; END IF;
@@ -50786,9 +50786,11 @@ BEGIN
     DELETE FROM public.review_capture_records WHERE organization_id=p_org;
     GET DIAGNOSTICS n=ROW_COUNT;
     PERFORM public.fn_review_capture_purge(p_org);
-    INSERT INTO public.review_capture_sessions(organization_id,actor_user_id,job_id,contact_id,collect_until,enabled,last_purged_at)
+    -- Um mesmo instante ancora o teto; chamadas volateis separadas podem violar o CHECK.
+    ts:=clock_timestamp();
+    INSERT INTO public.review_capture_sessions(organization_id,actor_user_id,job_id,contact_id,created_at,collect_until,enabled,last_purged_at)
       VALUES(p_org,p_actor,CASE WHEN p_kind='job' THEN p_scope END,CASE WHEN p_kind='test_contact' THEN p_scope END,
-        clock_timestamp()+interval '2 hours',true,clock_timestamp()) RETURNING id INTO sid;
+        ts,ts+interval '2 hours',true,ts) RETURNING id INTO sid;
     INSERT INTO public.api_audit_log(organization_id,actor_user_id,action,resource_type,resource_id,metadata)
       VALUES(p_org,p_actor,'ai.review_capture_enabled','review_capture',sid,
         jsonb_build_object('scope_kind',p_kind,'records_purged',n,'support',p_support));
@@ -53200,4 +53202,4 @@ alter table public.platform_branding
 comment on column public.platform_branding.accent_dark_hex is
   'Segunda semente da marca (#2482), só para o tema ESCURO: o bloco [data-theme=dark] deriva dela pela mesma derivarMarca, com os mesmos pisos de contraste. NULL = os dois temas derivam de accent_hex, como sempre. --color-brand continua sendo accent_hex (e-mail e logo nao tem tema). Lida/escrita so server-side (service_role), como o resto da tabela.';
 
--- 0641_comunicacao_e_diagnostico_da_revisao
+-- 0645_comunicacao_e_diagnostico_da_revisao
