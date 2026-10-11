@@ -1,7 +1,6 @@
 -- manifest: Comunicação por evento humano e diagnóstico privado opt-in com quotas, TTL, expurgo e isolamento.
 -- DIRC: traces/ledger não armazenam pacote; conteúdo temporário UNLOGGED e fora dos dumps oficiais.
 -- Não altera status de Caso nem autoriza coleta sem ativação administrativa explícita.
-BEGIN;
 
 ALTER TABLE public.agent_inbox_items DROP CONSTRAINT IF EXISTS agent_inbox_items_kind_check;
 ALTER TABLE public.agent_inbox_items add constraint agent_inbox_items_kind_check check (kind in (
@@ -195,13 +194,8 @@ CREATE INDEX IF NOT EXISTS review_capture_records_scope ON public.review_capture
 ALTER TABLE public.review_capture_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.review_capture_records ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation_review_capture_sessions_all ON public.review_capture_sessions;
-CREATE POLICY tenant_isolation_review_capture_sessions_all ON public.review_capture_sessions
-  FOR ALL USING(organization_id IN(SELECT public.fn_user_org_ids()))
-  WITH CHECK(organization_id IN(SELECT public.fn_user_org_ids()));
 DROP POLICY IF EXISTS tenant_isolation_review_capture_records_all ON public.review_capture_records;
-CREATE POLICY tenant_isolation_review_capture_records_all ON public.review_capture_records
-  FOR ALL USING(organization_id IN(SELECT public.fn_user_org_ids()))
-  WITH CHECK(organization_id IN(SELECT public.fn_user_org_ids()));
+-- RLS sem policy permissiva: mesmo um grant acidental não serve conteúdo direto.
 -- Toda leitura passa pela rota admin e auditoria síncrona. Nem admin pode ler pelo Data API sem audit.
 REVOKE ALL ON public.review_capture_sessions,public.review_capture_records FROM PUBLIC,anon,authenticated,service_role;
 
@@ -376,4 +370,3 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.fn_review_capture_manage(uuid,uuid,text,uuid,text,uuid,jsonb) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.fn_review_capture_manage(uuid,uuid,text,uuid,text,uuid,jsonb) TO service_role;
-COMMIT;

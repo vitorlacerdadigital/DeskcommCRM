@@ -30,7 +30,7 @@ export function CaseCommunication({caseId,events}:{caseId:string;events:Comunica
         {canWrite&&e.can_rectify?<Button size="sm" variant="outline" disabled={mutation.isPending} onClick={()=>{setEditing(e.event_id);setNote('');}}>{t('Retificar no mesmo Caso')}</Button>:null}
       </div>
       {editing===e.event_id?<div className="space-y-2">
-        <label className="block text-xs">{t('Decisão retificada')}<textarea className="mt-1 w-full rounded border p-2" value={note} maxLength={4000} onChange={ev=>setNote(ev.target.value)}/></label>
+        <label className="block text-xs">{t('Decisão retificada')}<textarea className="mt-1 w-full rounded-md border p-2" value={note} maxLength={4000} onChange={ev=>setNote(ev.target.value)}/></label>
         <p className="text-xs">{t('O histórico será preservado. A nova nota será reavaliada antes de qualquer envio.')}</p>
         <Button size="sm" disabled={mutation.isPending||!note.trim()} onClick={()=>mutation.mutate({event_id:e.event_id,action:'rectify',body:note})}>{t('Registrar retificação')}</Button>
       </div>:null}

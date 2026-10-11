@@ -3,7 +3,8 @@ import type { ContextoDeDecisaoHumana } from '../../agent/contexto-de-decisao-hu
 import type { EvidenciaComercial, CoberturaComercial } from './evidencias-comerciais';
 import type { ContextoDaRevisao } from './contexto-da-revisao';
 import { scrubMessage } from '@/lib/sentry/scrub';
-import { projetarContextoDoAtendimento, type ContextoDoAtendimento } from '../../agent/contexto-do-atendimento';
+import type { ContextoDoAtendimento } from '../../agent/contexto-do-atendimento';
+import { projetarContextoDoAtendimento } from './projecao-atendimento';
 
 export interface PacoteFactual {
   candidate: string;

@@ -12,7 +12,6 @@ const schema=z.discriminatedUnion('action',[
   z.object({action:z.literal('revoke'),session_id:z.string().uuid()}).strict(),
 ]);
 async function execute(req:NextRequest,write:boolean):Promise<Response>{
-  if(write){const denied=await requireSupportWrite();if(denied)return denied;}
   const requestId=randomUUID();const auth=await requireRole('admin',{requestId,resource:'review_capture'});
   if(!auth.ok)return auth.response;
   let input:{action:string;scope_kind?:string;scope_id?:string;session_id?:string}={action:'status'};
@@ -32,4 +31,7 @@ async function execute(req:NextRequest,write:boolean):Promise<Response>{
   } catch {return fail('unavailable','Diagnóstico privado indisponível.',503,{requestId});}
 }
 export function GET(req:NextRequest){return execute(req,false);}
-export function POST(req:NextRequest){return execute(req,true);}
+export async function POST(req:NextRequest):Promise<Response>{
+  const denied=await requireSupportWrite();if(denied)return denied;
+  return execute(req,true);
+}

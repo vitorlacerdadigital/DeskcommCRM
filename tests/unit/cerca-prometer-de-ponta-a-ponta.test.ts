@@ -106,7 +106,7 @@ const frasesQuePrometemRetorno = [
  * O detector léxico reconhece alvos humanos e o compromisso explícito de retorno
  * ligado à equipe. Os exemplos restantes ainda dependem da camada semântica.
  */
-const INDICES_QUE_O_LEXICO_PEGA = new Set([1, 2, 6]);
+const INDICES_QUE_O_LEXICO_PEGA = new Set([1, 2, 5, 6]);
 
 const falasInocentes = [
   "Bom dia! Como posso ajudar?",

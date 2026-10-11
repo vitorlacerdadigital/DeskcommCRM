@@ -186,3 +186,55 @@ describe('comunicação legada e deduplicação por decisão',()=>{
     expect(result.event_id).not.toBe(f.event);expect((await pool.query('select count(*)::int as n from agent_cases where organization_id=$1',[f.org])).rows[0].n).toBe(1);
   });
 });
+
+describe('Retenção e reconciliação continuam internas na organização suspensa',()=>{
+  it('expurga conteúdo vencido e registra pendência sem criar job ou mensagem',async()=>{
+    const f=await seed();await enable(f);const id=await capture(f);
+    await pool.query("update organizations set status='suspended',suspended_kind='administrativa' where id=$1",[f.org]);
+    expect((await pool.query('select fn_org_operante($1) as active',[f.org])).rows[0].active).toBe(false);
+    await pool.query("update review_capture_records set captured_at=now()-interval '73 hours',expires_at=now()-interval '1 hour' where id=$1",[id]);
+    const deleted=(await pool.query('select * from fn_review_capture_purge($1)',[f.org])).rows[0].deleted;
+    expect(Number(deleted)).toBe(1);
+    expect((await pool.query('select count(*)::int as n from review_capture_records where organization_id=$1',[f.org])).rows[0].n).toBe(0);
+    await reconciliarComunicacoesPendentes(pool);await reconciliarComunicacoesPendentes(pool);
+    expect((await pool.query("select count(*)::int as n from agent_inbox_items where organization_id=$1 and ref_kind='agent_case' and ref_id=$2",[f.org,f.caseId])).rows[0].n).toBe(1);
+    expect((await pool.query('select id,status from job_queue where organization_id=$1',[f.org])).rows).toEqual([{id:f.job,status:'done'}]);
+    expect((await pool.query('select count(*)::int as n from send_ledger where organization_id=$1',[f.org])).rows[0].n).toBe(0);
+    expect((await pool.query('select count(*)::int as n from messages where organization_id=$1',[f.org])).rows[0].n).toBe(0);
+  });
+});
+
+
+describe('Captura exige a porta auditada; RLS não serve tabelas diretamente',()=>{
+  it('nega papéis diretos e isola dois tenants por JWT mesmo diante de grant acidental',async()=>{
+    const a=await seed(),b=await seed();
+    const sa=await enable(a),sb=await enable(b);await capture(a,'SENTINELA_A');await capture(b,'SENTINELA_B');
+    for(const f of [a,b])await pool.query("insert into user_organizations(user_id,organization_id,role,accepted_at) values($1,$2,'admin',now())",[f.actor,f.org]);
+    for(const table of ['review_capture_sessions','review_capture_records']){
+      expect((await pool.query(`select count(*)::int as n from ${table} where organization_id=any($1::uuid[])`,[[a.org,b.org]])).rows[0].n).toBe(2);
+      expect((await pool.query(`select count(*)::int as n from pg_policies where schemaname='public' and tablename=$1 and permissive='PERMISSIVE'`,[table])).rows[0].n).toBe(0);
+    }
+    const db=await pool.connect();
+    try{
+      for(const role of ['anon','authenticated','service_role']){
+        await db.query(`set role ${role}`);
+        for(const table of ['review_capture_sessions','review_capture_records'])await expect(db.query(`select * from ${table}`)).rejects.toMatchObject({code:'42501'});
+        if(role!=='service_role')await expect(db.query("select fn_review_capture_manage($1,$2,'read',null,null,$3)",[a.org,a.actor,sa])).rejects.toMatchObject({code:'42501'});
+        else{
+          expect((await db.query("select fn_review_capture_manage($1,$2,'read',null,null,$3) as data",[a.org,a.actor,sa])).rows[0].data.records).toHaveLength(1);
+          expect((await db.query("select fn_review_capture_manage($1,$2,'read',null,null,$3) as data",[a.org,a.actor,sb])).rows[0].data).toBeNull();
+        }
+        await db.query('reset role');
+      }
+      await db.query('begin');
+      await db.query('grant select on review_capture_sessions,review_capture_records to authenticated');
+      await db.query('set local role authenticated');
+      for(const f of [a,b]){
+        await db.query("select set_config('request.jwt.claims',$1,true)",[JSON.stringify({sub:f.actor})]);
+        expect((await db.query('select fn_user_org_ids() as org')).rows).toEqual([{org:f.org}]);
+        for(const table of ['review_capture_sessions','review_capture_records'])expect((await db.query(`select count(*)::int as n from ${table}`)).rows[0].n).toBe(0);
+      }
+    }finally{await db.query('rollback');await db.query('reset role');db.release();}
+    expect((await pool.query("select has_table_privilege('authenticated','review_capture_records','SELECT') as allowed")).rows[0].allowed).toBe(false);
+  });
+});

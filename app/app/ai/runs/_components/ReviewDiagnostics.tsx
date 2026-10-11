@@ -31,12 +31,12 @@ export function ReviewDiagnostics(){
   },[opened,state.data,qc]);
   if(state.isPending)return null;
   if(state.error)return <p className="my-4 text-sm" role="status">{t('Diagnóstico privado restrito ao administrador ou indisponível.')}</p>;
-  return <details className="my-4 rounded border p-3" onToggle={ev=>{if(!ev.currentTarget.open){setOpened(null);qc.removeQueries({queryKey:['review-diagnostics-records']});}}}>
+  return <details className="my-4 rounded-md border p-3" onToggle={ev=>{if(!ev.currentTarget.open){setOpened(null);qc.removeQueries({queryKey:['review-diagnostics-records']});}}}>
     <summary className="cursor-pointer text-sm font-medium">{t('Diagnóstico privado da revisão')}</summary>
     <div className="mt-3 space-y-3 text-sm">
       <p>{t('Desligado por padrão. Colete somente uma execução ou um contato de teste identificado nesta instalação. Até 2 horas, 100 capturas e 10 MiB por sessão. Conteúdo acessível por até 72 horas, com expurgo físico e leitura auditada.')}</p>
-      <label className="block">{t('Escopo')} <select value={kind} onChange={e=>setKind(e.target.value as typeof kind)} className="rounded border p-1"><option value="job">{t('Execução')}</option><option value="test_contact">{t('Contato de teste')}</option></select></label>
-      <label className="block">{t('Identificador do escopo')}<input className="ml-2 max-w-full rounded border p-1" value={scope} onChange={e=>setScope(e.target.value)}/></label>
+      <label className="block">{t('Escopo')} <select value={kind} onChange={e=>setKind(e.target.value as typeof kind)} className="rounded-md border p-1"><option value="job">{t('Execução')}</option><option value="test_contact">{t('Contato de teste')}</option></select></label>
+      <label className="block">{t('Identificador do escopo')}<input className="ml-2 max-w-full rounded-md border p-1" value={scope} onChange={e=>setScope(e.target.value)}/></label>
       <label className="flex items-start gap-2"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>{t('Confirmo o escopo de teste e autorizo a captura privada limitada de conteúdo sanitizado.')}</label>
       <Button size="sm" disabled={!confirmed||!scope||mutation.isPending} onClick={()=>mutation.mutate({action:'enable',scope_kind:kind,scope_id:scope,test_contact_confirmed:true})}>{t('Habilitar captura limitada')}</Button>
       {state.data?.sessions.map(s=><div className="space-y-1 border-t pt-2" key={s.id}>
