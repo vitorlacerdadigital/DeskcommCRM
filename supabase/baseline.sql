@@ -52969,7 +52969,7 @@ alter table public.platform_branding
 comment on column public.platform_branding.accent_dark_hex is
   'Segunda semente da marca (#2482), só para o tema ESCURO: o bloco [data-theme=dark] deriva dela pela mesma derivarMarca, com os mesmos pisos de contraste. NULL = os dois temas derivam de accent_hex, como sempre. --color-brand continua sendo accent_hex (e-mail e logo nao tem tema). Lida/escrita so server-side (service_role), como o resto da tabela.';
 
--- 0635_comunicacao_e_diagnostico_da_revisao
+-- 0641_comunicacao_e_diagnostico_da_revisao
 -- manifest: Comunicação por evento humano e diagnóstico privado opt-in com quotas, TTL, expurgo e isolamento.
 -- DIRC: traces/ledger não armazenam pacote; conteúdo temporário UNLOGGED e fora dos dumps oficiais.
 -- Não altera status de Caso nem autoriza coleta sem ativação administrativa explícita.
