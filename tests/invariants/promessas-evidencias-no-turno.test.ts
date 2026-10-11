@@ -189,7 +189,9 @@ it("a guarda da prévia recebe o acervo consultado, mas não o de outra organiza
   expect(classifier).toHaveLength(1);
   expect(classifier[0]).toContain("evidencias");
   expect(classifier[0]).toContain("Plano anual: matrícula gratuita");
-  const request = JSON.parse(classifier[0]) as Array<{role:string;content:unknown}>;
+  const classifierPrompt = classifier[0];
+  if (classifierPrompt === undefined) throw new Error("classificador não recebeu o pacote esperado");
+  const request = JSON.parse(classifierPrompt) as Array<{role:string;content:unknown}>;
   const user = request.find(message => message.role === 'user')!;
   const parts = user.content as Array<{type:string;text:string}>;
   const evidencePackage = JSON.parse(parts.find(part => part.type === 'text')!.text);
