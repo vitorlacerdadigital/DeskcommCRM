@@ -325,6 +325,10 @@ Provas novas: `tests/invariants/revisor-contexto-casos.test.ts` e `lib/agent-eng
 
 ## Contexto factual de fontes e continuidade
 
+Pedido/autoria/validade: `inbound_turn` usa `inbound_message_id`; `case_reply_turn` usa o evento autenticado (ou correlação legada única) e o pedido original do snapshot. A mensagem é relida na org/conversa/contato/revisão de atendimento. Abrir a primeira demanda não é atendimento novo; um pedido anterior sem demanda permanece na mesma revisão. Outra revisão não é aceita. O gatilho humano tem seu próprio instante e não simula nova fala do cliente.
+
+Histórico outbound só inclui `sent/delivered/read`. Ator autenticado registrado informa autoria humana; sem esse registro permanece `unknown_outbound`. Instante/fuso da fonte acompanham o texto. Recortes de histórico/resumo são auxiliares e cobertura limitada não autoriza repasse fiel. A revisão relê fontes, política/bindings/aceite, produtos consultados, ponteiros de conhecimento/skills, cancelamento e fronteira. Memória/skill retirada não é ressuscitada pelo snapshot. Revalidação final vale também sem decisão de Caso elegível, com uma repetição fora da transação e pendência após nova mudança.
+
 `contexto-do-atendimento.ts` lê fontes canônicas em uma consulta agrupada e scoped por organização, contato, conversa e job. O contato não é o negócio: campos e decisões conservam aliases por negócio e usam o resolvedor compartilhado de negócio ativo, sem adivinhar empate. Campos de formulário/cadastro e memória durável permanecem declarações/registros; não viram política comercial nem verificação clínica.
 
 Decisões de próxima ação registram papel autenticado e sequência da proposta em `payload.review_context_v1`. Aprovação/recusa tem alcance somente sobre a proposta original; nova sequência ou decisão posterior invalida o uso atual. Legado sem papel histórico permanece explícito. Aprovação não é recibo de execução.

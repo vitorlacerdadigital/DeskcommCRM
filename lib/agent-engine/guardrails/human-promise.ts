@@ -74,11 +74,12 @@ function buildPatterns(target: string): RegExp[] {
     new RegExp(
       `\\b(?:ped|solicit)\\w*${gap(12)}\\b(?:pra|para|pro|ao|aos|a|as|com)\\b${gap(10)}\\b${target}\\b`,
     ),
+    new RegExp(`\\bconsult\\w*${gap(8)}\\b${target}\\b`),
     // (2) "<alvo humano> vai/pode <resolver/retornar/...>": "nosso time vai resolver", "um responsavel vai te retornar".
     //     "nossa equipe ESTA a disposicao" NÃO casa ("esta" fora do grupo vai/vao/pode).
     new RegExp(
       `\\b${target}\\b${gap(20)}\\b(?:vai|vao|ira|irao|pode|podem|poderao)\\b${gap(10)}` +
-        `(?:\\b(?:te|lhe|se|nos)\\b\\s*)?(?:resolv|retorn|respond|liber|analis|verific|cuid|assum|atend|entr|aprov|confirm|contat|ajud)\\w*`,
+        `(?:\\b(?:te|lhe|se|nos)\\b\\s*)?(?:resolv|retorn|respond|liber|analis|avali|verific|cuid|assum|atend|entr|aprov|confirm|contat|ajud)\\w*`,
     ),
     // Contato declarado com o cliente, inclusive pronome que retoma a equipe
     // da frase anterior: "eles te retornam", "a equipe vai te ligar".
@@ -114,6 +115,8 @@ function buildPatterns(target: string): RegExp[] {
       `\\b(?:assim que|assim q|quando|depois que|logo que|apos)\\b${gap(12)}` +
         `\\b(?:liber|aprov|autoriz|respond|retorn|verific|analis|resolv|confirm)(?:ar|er)em\\b`,
     ),
+    // Compromisso de operação interna mesmo sem nomear a retaguarda.
+    /\b(?:vou|vamos|ja|acabei de)\s+(?:levar|encaminhar|encaminhei|pedir|pedi|solicitar|solicitei|registrar|registrei)\b[^.!?\n]{0,60}\b(?:avaliacao interna|analise interna|retaguarda)\b/,
   ];
 }
 
@@ -158,6 +161,31 @@ function soPedeConsentimento(text: string): boolean {
   );
 }
 
+/** A negação vale para a ocorrência, nunca exonera uma promessa vizinha. */
+function temCompromisso(frase: string, patterns: readonly RegExp[]): boolean {
+  const oracoes = frase.split(/;|,?\s+\b(?:mas|porem|contudo|entretanto)\b\s+|,\s*|\s+e\s+(?=(?:eu|vou|vamos|a equipe|o time|o responsavel|eles|elas)\b)/);
+  return oracoes.some(oracao => {
+    if (soPedeConsentimento(oracao)) return false;
+    return patterns.some(pattern => {
+      for (const match of oracao.matchAll(new RegExp(pattern.source, 'g'))) {
+        const antes = oracao.slice(0, match.index);
+        const trecho = match[0];
+        if (/\b(?:nao|nunca|jamais)\s+(?:(?:vou|vamos|irei|iremos|pretendo|quero|posso|podemos)\s+)?$/.test(antes)) continue;
+        if (/\b(?:nao|nunca|jamais)\s+(?:vai|vao|ira|irao|pode|podem|te|lhe|esta|ficou|segue)\b/.test(trecho)) continue;
+        // Capacidade genérica é descrição de serviço. Cliente/objeto/prazo
+        // individual volta a tornar a ocorrência um compromisso suspeito.
+        if (/\b(?:pode|podem|poderao)\b/.test(trecho) &&
+          !/\b(?:seu|sua|seus|suas|voce|vc|te|lhe|hoje|amanha|minutos?|horas?|dias?|\d+)\b/.test(oracao)) continue;
+        // Explicação do fluxo/condição prévia, sem afirmar operação executada.
+        if (/\b(?:para|como|opcao de|possibilidade de)\s*$/.test(antes) &&
+          !/\b(?:ja|vou|vamos|encaminhei|pedi|registrei|solicitei)\b/.test(oracao)) continue;
+        return true;
+      }
+      return false;
+    });
+  });
+}
+
 /**
  * True se a candidata promete envolver um humano/retaguarda. Determinístico,
  * conservador (spec §10.2). Vazio/whitespace = false.
@@ -187,7 +215,7 @@ export function detectHumanPromise(body: string, extraHumanNames?: readonly stri
   const analisadas = frases.filter((frase) => !soPedeConsentimento(frase));
   if (analisadas.length === 0) return false;
   if (extraHumanNames === undefined || extraHumanNames.length === 0) {
-    return analisadas.some((frase) => PATTERNS.some((re) => re.test(frase)));
+    return analisadas.some((frase) => temCompromisso(frase, PATTERNS));
   }
   const names = Array.from(
     new Set(
@@ -196,8 +224,8 @@ export function detectHumanPromise(body: string, extraHumanNames?: readonly stri
         .filter((w) => /^[a-z]{3,}$/.test(w) && !TARGET_WORD_SET.has(w)),
     ),
   );
-  if (names.length === 0) return analisadas.some((frase) => PATTERNS.some((re) => re.test(frase)));
+  if (names.length === 0) return analisadas.some((frase) => temCompromisso(frase, PATTERNS));
   const extendedTarget = `(?:${TARGET_WORDS.join("|")}|${names.map(escapeRegex).join("|")})`;
   const patterns = buildPatterns(extendedTarget);
-  return analisadas.some((frase) => patterns.some((re) => re.test(frase)));
+  return analisadas.some((frase) => temCompromisso(frase, patterns));
 }

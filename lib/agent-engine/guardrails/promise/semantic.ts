@@ -30,7 +30,7 @@ import type { ProviderRegistry } from "../../edge/llm/providers";
 import { runModelCall, type LlmEdgeConfig } from "../../edge/llm/run-model-call";
 import type { LlmResolveOverride } from "../../edge/llm/credentials";
 import { extrairObjetoJsonDoTexto } from "@/lib/agent-engine/texto/extrair-json-do-texto";
-import type { EvidenciaComercial } from "./evidencias-comerciais";
+import type { EvidenciaComercial, CoberturaComercial } from "./evidencias-comerciais";
 import type { ContextoDaRevisao } from "./contexto-da-revisao";
 import { detectHumanPromise } from "../human-promise";
 import { conferirOrcamentoDaRevisao } from "./orcamento-da-revisao";
@@ -203,6 +203,7 @@ export async function classifyPromise(
     llmOverride?: LlmResolveOverride;
     /** Somente evidências recolhidas das consultas reais do servidor neste turno. */
     commercialEvidence?: readonly EvidenciaComercial[];
+    commercialCoverage?: CoberturaComercial;
     /** Conversa curada pelo servidor, nunca autorização comercial. */
     conversationContext?: ContextoDaRevisao;
   },

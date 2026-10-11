@@ -46,4 +46,15 @@ describe('T08 fotografia da decisão até o efeito',()=>{
     expect(await runBeforeSend(f.args)).toMatchObject({status:'vetoed',code:'case_promise_without_case'});
     expect(f.classify).toHaveBeenCalledTimes(1);expect(f.send).not.toHaveBeenCalled();
   });
+  it('fonte muda antes do efeito sem exceção de Caso: reavalia fora do lock',async()=>{
+    const f=fixture(['not_eligible','stale','not_eligible','not_eligible']);
+    f.args.body='Consultei o plano solicitado.';
+    f.classify.mockImplementation(async()=>{
+      f.events.push('review');
+      return {isPromise:false,suspectPhrase:null,prometeuRetornoHumano:false,retornoSoDoAssistente:false,repasseConcluidoFiel:false};
+    });
+    expect((await runBeforeSend(f.args)).status).toBe('sent');
+    expect(f.classify).toHaveBeenCalledTimes(2);expect(f.validate).toHaveBeenCalledTimes(4);expect(f.send).toHaveBeenCalledTimes(1);
+    expect(f.events).toEqual(['review','begin','rollback','release','review','begin','send','commit','release']);
+  });
 });

@@ -2828,22 +2828,28 @@ async function executarTurnoDoAgente(
   // Memo POR CORPO e por evidências, por turno (`memoizarPorCandidata`): os
   // fail-safes de vocabulário e de promessa re-rodam a cadeia com o MESMO texto.
   let contextoHumano: ContextoDeDecisaoHumana | undefined;
-  const lerContextoHumano = async (db: Queryable = pool, lock = false) => {
+  let contextoDoAtendimento: ContextoDoAtendimento | undefined;
+  const lerContextoHumano = async (db: Queryable = pool, lock = false, atendimento = contextoDoAtendimento) => {
     if (preview?.kind === 'sandbox' || !agentConfig?.casesEnabled) return undefined;
-    try { return await carregarContextoDeDecisaoHumana(db, { tenantId,leadId,conversationId:input.conversationId }, { now:deps.clock?.() ?? new Date(),lock }); }
+    try { return await carregarContextoDeDecisaoHumana(db, { tenantId,leadId,conversationId:input.conversationId }, { now:deps.clock?.() ?? new Date(),lock,canonicalRequest:atendimento?.pedido?.mensagem ?? null }); }
     catch { runLog.warn('contexto de decisões indisponível', { event:'human_decision_context_unavailable' }); return undefined; }
   };
-  contextoHumano = await lerContextoHumano();
   const momentoDaRevisao = (deps.clock?.() ?? new Date()).toISOString();
   const fontesConsultadas = criarFontesConsultadasDoTurno(momentoDaRevisao);
   if (orgMemory.content) fontesConsultadas.registrar('memoria_org','documento',orgMemory.content);
   for (const entry of orgMemory.entries) fontesConsultadas.registrar('memoria_org',entry.id,`${entry.title}\n${entry.body}`);
   const lerContextoDoAtendimento = async (db: Queryable = pool): Promise<ContextoDoAtendimento | undefined> => {
     if (preview?.kind === 'sandbox') return undefined;
-    try { return fontesConsultadas.aplicar(await carregarContextoDoAtendimento(db, { tenantId, leadId, conversationId:input.conversationId, jobId:liveJob().id })); }
-    catch { runLog.warn('fontes do atendimento indisponíveis', { event:'review_service_context_unavailable' }); return contextoDoAtendimentoIndisponivel(); }
+    try {
+      const atual = fontesConsultadas.aplicar(await carregarContextoDoAtendimento(db, { tenantId, leadId, conversationId:input.conversationId, jobId:liveJob().id,
+        knowledgeSourceIds:agentConfig?.knowledgeSourceIds ?? [],skillVersionIds:fontesConsultadas.skillVersionIds(),productCodes:evidenciasComerciais.codigosConsultados() }));
+      evidenciasComerciais.revalidar(atual.validacaoComercial);
+      return atual;
+    }
+    catch { evidenciasComerciais.revalidar(undefined); runLog.warn('fontes do atendimento indisponíveis', { event:'review_service_context_unavailable' }); return contextoDoAtendimentoIndisponivel(); }
   };
-  let contextoDoAtendimento = await lerContextoDoAtendimento();
+  contextoDoAtendimento = await lerContextoDoAtendimento();
+  contextoHumano = await lerContextoHumano();
   const fingerprintDaFotografia = (humano: ContextoDeDecisaoHumana | undefined, atendimento: ContextoDoAtendimento | undefined) =>
     `${humano?.fingerprint ?? 'sem_decisao'}|${atendimento?.fingerprint ?? 'sem_fontes'}|${JSON.stringify(corposEnviados)}`;
   const fotografiasDaRevisao = new Map<string, string>();
@@ -2859,12 +2865,13 @@ async function executarTurnoDoAgente(
           {
             candidate,
             commercialEvidence: evidenciasComerciais.ler(candidate),
+            commercialCoverage: evidenciasComerciais.cobertura(candidate),
             ...(contextoHumano ? { humanDecisionContext:contextoHumano } : {}),
             ...(contextoDoAtendimento ? { serviceContext:contextoDoAtendimento } : {}),
             sentAntecedents:corposEnviados,
             conversationContext: montarContextoDaRevisao(
               effectiveContext.messages, effectivePrevious?.rolling_summary,
-              momentoDaRevisao, fusoDaOrg,
+              momentoDaRevisao, contextoDoAtendimento?.fuso ?? fusoDaOrg,
             ),
             ...argsAux(deps.knobs.promiseSemantic?.model),
           },
@@ -2877,8 +2884,8 @@ async function executarTurnoDoAgente(
     : undefined;
   const semanticClassifier = classificadorMemoizado === undefined ? undefined : async (candidate: string) => {
     await recuperarEvidencias(candidate);
-    contextoHumano = await lerContextoHumano();
     contextoDoAtendimento = await lerContextoDoAtendimento();
+    contextoHumano = await lerContextoHumano();
     if (contextoDoAtendimento) runLog.info('contexto factual da revisão montado', { event:'review_context_sources',versao:1,cobertura:contextoDoAtendimento.cobertura });
     const fotografia = fingerprintDaFotografia(contextoHumano, contextoDoAtendimento);
     const verdict = await classificadorMemoizado(candidate);
@@ -2897,6 +2904,7 @@ async function executarTurnoDoAgente(
       contactId: leadId || null,
       agentId: agentConfig?.agentId ?? null,
       lerEvidencias: () => evidenciasComerciais.ler(),
+      fingerprintContexto: () => `${evidenciasComerciais.contexto()}|${fingerprintDaFotografia(contextoHumano,contextoDoAtendimento)}`,
     },
     deps.jev ?? {},
   );
@@ -3482,8 +3490,9 @@ async function executarTurnoDoAgente(
                   validateHumanDecision: async (db: pg.PoolClient, candidate: string, verdict: PromiseClassification | null): Promise<'valid'|'not_eligible'|'stale'> => {
                     const fingerprint = fotografiasDaRevisao.get(candidate);
                     if (!fingerprint) return 'not_eligible';
-                    const fresh = await lerContextoHumano(db, true);
                     const freshService = await lerContextoDoAtendimento(db);
+                    if (freshService?.estadoDoJob && freshService.estadoDoJob !== 'running') return 'stale';
+                    const fresh = await lerContextoHumano(db, true, freshService);
                     if (fingerprintDaFotografia(fresh, freshService) !== fingerprint) return 'stale';
                     return verdict?.repasseConcluidoFiel === true && fresh?.decisions.some(d=>d.eligible) ? 'valid' : 'not_eligible';
                   } }
@@ -4100,7 +4109,10 @@ async function executarTurnoDoAgente(
               refPath: ref_path,
             },
           );
-          if (result.ok) fontesConsultadas.registrar('referencia_skill',`${result.skill_name}:${result.ref_path}`,result.content);
+          if (result.ok) {
+            const skill=skillMatch.matched.find(s=>s.name===result.skill_name);
+            if (skill) fontesConsultadas.registrar('referencia_skill',`${result.skill_name}:${result.ref_path}`,result.content,skill.versionId);
+          }
           return result;
         } catch (err) {
           noteRunError(err instanceof Error ? err : new Error(String(err)));

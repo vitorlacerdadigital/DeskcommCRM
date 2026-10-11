@@ -33,7 +33,7 @@ interface Linha {
 /** Três reads agrupados. O nono resultado detecta perda de cobertura. */
 export async function carregarContextoDeDecisaoHumana(
   db: Queryable, ids: { tenantId: string; leadId: string; conversationId: string },
-  options: { now?: Date; lock?: boolean } = {},
+  options: { now?: Date; lock?: boolean; canonicalRequest?: { id: string; text: string; at: string } | null } = {},
 ): Promise<ContextoDeDecisaoHumana> {
   const current = await readCurrentServiceBoundary(db, ids.tenantId, ids.conversationId);
   if (current?.contact_id !== ids.leadId) throw new Error('human_decision_scope_mismatch');
@@ -66,7 +66,7 @@ export async function carregarContextoDeDecisaoHumana(
         from ai_purpose_bindings where organization_id=$1 and purpose in ('promise_semantic','human_return_confirmation')))
        as policy from organizations where id=$1`, [ids.tenantId, ids.conversationId],
   );
-  const rawRequest = requestRows.rows[0]?.request ?? null;
+  const rawRequest = Object.hasOwn(options,'canonicalRequest') ? options.canonicalRequest ?? null : requestRows.rows[0]?.request ?? null;
   let limited = rows.length > 8 || (rawRequest?.text?.length ?? 0) > 8000;
   let chars = 0;
   const decisions: DecisaoHumanaDoCaso[] = [];

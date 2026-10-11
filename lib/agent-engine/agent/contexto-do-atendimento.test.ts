@@ -88,7 +88,7 @@ describe('T05/T07 fontes com autoridade limitada',()=>{
   it('read agrupado é scoped por org/contato/conversa/job e ausência explícita',async()=>{
     const query=vi.fn(async()=>({rows:[]}));
     const c=await carregarContextoDoAtendimento({query} as never,{tenantId:org,leadId:contact,conversationId:'conversa',jobId:'job'});
-    expect(query).toHaveBeenCalledOnce();expect(query.mock.calls[0]).toEqual([expect.stringContaining('c.contact_id=$2'),[org,contact,'conversa','job']]);
+    expect(query).toHaveBeenCalledOnce();expect(query.mock.calls[0]).toEqual([expect.stringContaining('c.contact_id=$2'),[org,contact,'conversa','job',[],[],[]]]);
     expect(c.cobertura.every(x=>x.estado==='unavailable')).toBe(true);
   });
   it('corpo de nota antiga, skill/reference e memória consultadas chegam ao revisor sem virar aprovação',()=>{

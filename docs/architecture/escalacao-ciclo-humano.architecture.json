@@ -1505,6 +1505,18 @@
       "from": "fontes_atendimento",
       "to": "jev",
       "label": "projeção equivalente para JEV/reserva/confirmador; v2 ou reserva"
+    },
+    {
+      "id": "ctx138",
+      "from": "fontes_atendimento",
+      "to": "guarda",
+      "label": "releitura do pedido/fontes até o efeito; uma revisão nova fora do lock"
+    },
+    {
+      "id": "ctx139",
+      "from": "modelo",
+      "to": "jev",
+      "label": "pedido canônico, autoria/datas e cobertura comercial no pacote comum"
     }
   ],
   "cards": [

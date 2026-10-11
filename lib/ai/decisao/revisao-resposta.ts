@@ -4,7 +4,7 @@ import type { LlmEdgeConfig } from "@/lib/agent-engine/edge/llm/run-model-call";
 import { costCents } from "@/lib/agent-engine/edge/llm/pricing";
 import type { Logger } from "@/lib/agent-engine/obs/logger";
 import type { PromiseClassification } from "@/lib/agent-engine/guardrails/promise/semantic";
-import type { EvidenciaComercial } from "@/lib/agent-engine/guardrails/promise/evidencias-comerciais";
+import type { EvidenciaComercial, CoberturaComercial } from "@/lib/agent-engine/guardrails/promise/evidencias-comerciais";
 import type { ContextoDaRevisao } from "@/lib/agent-engine/guardrails/promise/contexto-da-revisao";
 import { PERGUNTA_COMERCIAL_COM_EVIDENCIAS, PERGUNTA_COMERCIAL_SEM_EVIDENCIA, PERGUNTA_RETORNO_SEM_FORMATO } from "@/lib/agent-engine/guardrails/promise/instrucoes";
 import { decidirRevisao, SINAIS_DA_REVISAO, type ProbabilidadesDaRevisao, type SinalDaRevisao } from "@/lib/agent-engine/guardrails/promise/decisao-do-jev";
@@ -23,6 +23,7 @@ export interface PacoteDaRevisao {
   serviceContext?: ContextoDoAtendimento;
   sentAntecedents?: readonly string[];
   commercialEvidence?: readonly EvidenciaComercial[];
+  commercialCoverage?: CoberturaComercial;
   conversationContext?: ContextoDaRevisao;
 }
 type Ids = { tenantId: string; leadId?: string | null; jobId?: string };

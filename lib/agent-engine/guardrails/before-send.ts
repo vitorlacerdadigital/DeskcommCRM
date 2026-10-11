@@ -455,7 +455,7 @@ export const casePromiseGate: Gate = {
   name: 'case_promise',
   evaluate: (ctx) => {
     if (!ctx.casesEnabled) return { pass: true };
-    if (ctx.humanDecisionStale) return { pass:false, code:'human_decision_context_changed', reason:'O contexto da decisão humana mudou. Releia o caso antes de comunicar a conclusão.' };
+    if (ctx.humanDecisionStale) return { pass:false, code:'human_decision_context_changed', reason:'As fontes ou a decisão mudaram. Releia o contexto antes de comunicar a conclusão.' };
     if (ctx.humanDecisionValidated === true && ctx.semanticPromise?.repasseConcluidoFiel === true) return { pass:true };
     if (ctx.hasOpenCase || ctx.openedCaseThisTurn) return { pass: true };
     // Lê os DOIS sinais, em OU — e o OU é o ponto. Exigir os dois faria o conserto
@@ -1512,14 +1512,15 @@ async function runBeforeSendAttempt(args: RunBeforeSendArgs): Promise<BeforeSend
     // ctx.body é o corpo FINAL (emendado pelo disclosureGate F4-05 quando aplicável).
     if (args.approvedReply && ctx.body !== args.body)
       throw new Error('reply_body_changed_reapproval_required');
-    if (args.validateHumanDecision && humanDecision !== 'not_eligible' &&
+    // A revisão de fontes também vale sem uma exceção de Caso elegível.
+    if (args.validateHumanDecision &&
       await args.validateHumanDecision(client, bodyDoModelo, semanticPromise) === 'stale') {
       await client.query('rollback');
-      const lateVeto = { gate:'case_promise',code:'human_decision_context_changed',message:'A decisão mudou durante a preparação do envio; releia o caso.' };
+      const lateVeto = { gate:'case_promise',code:'human_decision_context_changed',message:'As fontes ou a decisão mudaram durante a preparação do envio; releia o contexto.' };
       trace.push({ gate:lateVeto.gate,verdict:'veto',code:lateVeto.code });
       emitTrace(args.log,args.channelSessionId,trace.slice(-1));
       await persistTrace(args,trace,lateVeto);
-      return { status:'vetoed', trace, gate:'case_promise', code:'human_decision_context_changed', message:'A decisão mudou durante a preparação do envio; releia o caso.' };
+      return { status:'vetoed', trace, gate:'case_promise', code:'human_decision_context_changed', message:lateVeto.message };
     }
     const outcome = await args.send(ctx.body);
 
