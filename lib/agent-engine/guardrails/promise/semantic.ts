@@ -21,7 +21,7 @@
  * organization_id/contact_id vêm da ROW do job (closure do run), nunca do payload (regra dura 1).
  */
 import type pg from "pg";
-import { pacoteFactualDaRevisao, INSTRUCAO_REPASSE, temDecisaoElegivel } from "./contrato-contexto";
+import { pacoteFactualDaRevisao, INSTRUCAO_REPASSE, temDecisaoElegivel, precisaRevisarConclusaoHumana } from "./contrato-contexto";
 import type { ContextoDeDecisaoHumana } from "../../agent/contexto-de-decisao-humana";
 import type { ContextoDoAtendimento } from "../../agent/contexto-do-atendimento";
 
@@ -33,6 +33,7 @@ import { extrairObjetoJsonDoTexto } from "@/lib/agent-engine/texto/extrair-json-
 import type { EvidenciaComercial, CoberturaComercial } from "./evidencias-comerciais";
 import type { ContextoDaRevisao } from "./contexto-da-revisao";
 import { detectHumanPromise } from "../human-promise";
+import { detectHumanCompletion } from "./conclusao-humana";
 import { conferirOrcamentoDaRevisao } from "./orcamento-da-revisao";
 import { revisarRespostaComJev } from "@/lib/ai/decisao/revisao-resposta";
 import { PROMISE_SEMANTIC_INSTRUCTION, INSTRUCAO_COM_EVIDENCIAS, CONFIRMAR_RETORNO_INSTRUCTION } from "./instrucoes";
@@ -44,6 +45,8 @@ export interface PromiseClassification {
   isPromise: boolean;
   /** Positivo fechado; só tem efeito junto da prova interna relida pelo servidor. */
   repasseConcluidoFiel?: boolean;
+  /** Afirma conclusão/decisão humana individual, independentemente de ser fiel ou ter retorno futuro. */
+  afirmouConclusaoHumana?: boolean;
   /** trecho literal da candidata que caracteriza a promessa (só quando isPromise=true). */
   suspectPhrase: string | null;
   /**
@@ -181,6 +184,7 @@ export function parsePromiseClassification(
     prometeuRetornoHumano,
     retornoSoDoAssistente,
     ...(Object.hasOwn(obj, 'repasseConcluidoFiel') ? { repasseConcluidoFiel: obj.repasseConcluidoFiel === true } : {}),
+    ...(typeof obj.afirmouConclusaoHumana === 'boolean' ? { afirmouConclusaoHumana: obj.afirmouConclusaoHumana } : {}),
     ...diagnostic,
   };
 }
@@ -214,7 +218,7 @@ export async function classifyPromise(
     loadHumanReturnBinding?: typeof carregarBinding;
   },
 ): Promise<PromiseClassification> {
-  return revisarRespostaComJev(db, cfg, ids, args, async () => {
+  const reviewed = await revisarRespostaComJev(db, cfg, ids, args, async () => {
   const call = await runModelCall(
     db,
     cfg,
@@ -240,8 +244,10 @@ export async function classifyPromise(
   // O parser recebe a CANDIDATA para poder degradar `prometeuRetornoHumano` pelo
   // veredito do léxico (a assimetria está documentada no corpo do parser).
   const initial = parsePromiseClassification(call.result.text, args.candidate, deps.log);
-  if (args.humanDecisionContext) initial.repasseConcluidoFiel = temDecisaoElegivel(args) && initial.repasseConcluidoFiel === true;
-  if (!initial.prometeuRetornoHumano) return initial;
+  const completion = initial.afirmouConclusaoHumana === true ||
+    (precisaRevisarConclusaoHumana(args) && initial.afirmouConclusaoHumana === undefined && detectHumanCompletion(args.candidate));
+  if (!initial.prometeuRetornoHumano && !completion) return initial;
+  let confirmationRequired = completion;
   try {
     const binding = await (deps.loadHumanReturnBinding ?? carregarBinding)(
       db,
@@ -250,6 +256,7 @@ export async function classifyPromise(
     );
     // Sem escolha explícita, conserva a revisão existente sem chamada extra.
     if (!binding?.is_enabled || binding.purpose !== "human_return_confirmation") return initial;
+    confirmationRequired = completion;
     const confirmation = await runModelCall(
       db,
       cfg,
@@ -278,16 +285,26 @@ export async function classifyPromise(
       deps.log.warn("confirmação de retorno inválida — marcação inicial preservada", {
         event: "human_return_confirmation_invalid",
       });
-      return initial;
+      return completion ? { ...initial, repasseConcluidoFiel: false } : initial;
     }
     const checked = parsePromiseClassification(confirmation.result.text, args.candidate, deps.log);
+    // O confirmador também precisa responder à conclusão quando assume esse julgamento.
+    // Campo ausente/tipo trocado não transforma falha em autorização da marcação inicial.
+    if (completion && (typeof (raw as Record<string, unknown>).afirmouConclusaoHumana !== 'boolean' ||
+        typeof (raw as Record<string, unknown>).repasseConcluidoFiel !== 'boolean')) {
+      deps.log.warn('confirmação da conclusão ilegível', { event: 'human_completion_confirmation_invalid' });
+      return { ...initial, repasseConcluidoFiel: false };
+    }
     deps.log.info("confirmação de retorno humano concluída", {
       event: "human_return_confirmed",
       confirmado: checked.prometeuRetornoHumano,
     });
     return {
       isPromise: initial.isPromise,
-      ...(args.humanDecisionContext ? { repasseConcluidoFiel: temDecisaoElegivel(args) && checked.repasseConcluidoFiel === true } : {}),
+      ...(args.humanDecisionContext ? { repasseConcluidoFiel: checked.repasseConcluidoFiel === true } : {}),
+      ...(initial.afirmouConclusaoHumana === true || checked.afirmouConclusaoHumana === true
+        ? { afirmouConclusaoHumana: true }
+        : checked.afirmouConclusaoHumana === false ? { afirmouConclusaoHumana: false } : {}),
       suspectPhrase: initial.suspectPhrase,
       prometeuRetornoHumano: checked.prometeuRetornoHumano,
       retornoSoDoAssistente: checked.prometeuRetornoHumano && checked.retornoSoDoAssistente,
@@ -299,9 +316,15 @@ export async function classifyPromise(
     deps.log.warn("confirmação de retorno falhou — marcação inicial preservada", {
       event: "human_return_confirmation_failed",
     });
-    return initial;
+    return confirmationRequired ? { ...initial, repasseConcluidoFiel: false } : initial;
   }
   }, { log: deps.log, conferirOrcamento: conferirOrcamentoDaRevisao });
+  // Mesma normalização para JEV, reserva e confirmador; nunca positiva por coerção/ausência.
+  if (args.humanDecisionContext || precisaRevisarConclusaoHumana(args) || reviewed.afirmouConclusaoHumana === true) {
+    reviewed.repasseConcluidoFiel = temDecisaoElegivel(args) && reviewed.afirmouConclusaoHumana === true &&
+      reviewed.repasseConcluidoFiel === true && !reviewed.prometeuRetornoHumano && !detectHumanPromise(args.candidate);
+  }
+  return reviewed;
 }
 
 /**

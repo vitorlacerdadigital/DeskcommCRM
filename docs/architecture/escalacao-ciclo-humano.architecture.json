@@ -1520,13 +1520,13 @@
       "id": "ctx137",
       "from": "fontes_atendimento",
       "to": "jev",
-      "label": "projeção equivalente para JEV/reserva/confirmador; v2 ou reserva"
+      "label": "mesma fonte humana encerrada e candidata nos três revisores; conclusão e fidelidade independentes; v2 ou reserva"
     },
     {
       "id": "ctx138",
       "from": "fontes_atendimento",
       "to": "guarda",
-      "label": "releitura do pedido/fontes até o efeito; uma revisão nova fora do lock"
+      "label": "releitura até o efeito; conclusão infiel vetada mesmo com Caso aberto/Casos desligado; uma revisão fora do lock"
     },
     {
       "id": "ctx139",

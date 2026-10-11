@@ -3,7 +3,7 @@ import type { Resposta } from "@/lib/ai/decisao/cliente";
 import type { PromiseClassification } from "./semantic";
 
 export const LIMITES_DA_REVISAO = { nao: 0.2, sim: 0.8 } as const;
-export const SINAIS_DA_REVISAO = ["comercial", "retorno", "so_assistente", "repasse"] as const;
+export const SINAIS_DA_REVISAO = ["comercial", "retorno", "so_assistente", "repasse", "conclusao"] as const;
 export type SinalDaRevisao = (typeof SINAIS_DA_REVISAO)[number];
 export type ProbabilidadesDaRevisao = Record<SinalDaRevisao, number>;
 
@@ -14,7 +14,7 @@ export type DecisaoDaRevisao =
 
 export function decidirRevisao(respostas: Readonly<Record<string, Resposta>>, temDecisao = false): DecisaoDaRevisao {
   const probabilidades = {} as ProbabilidadesDaRevisao;
-  const sinais = SINAIS_DA_REVISAO.filter(s => s !== "repasse" || temDecisao);
+  const sinais = SINAIS_DA_REVISAO.filter(s => (s !== "repasse" && s !== "conclusao") || temDecisao);
   for (const campo of sinais) {
     const r = respostas[campo];
     if (r?.tipo !== "noul" || !Number.isFinite(r.noul) || r.noul < 0 || r.noul > 1) {
@@ -34,7 +34,11 @@ export function decidirRevisao(respostas: Readonly<Record<string, Resposta>>, te
   return {
     motivo: "decidiu", probabilidades,
     veredito: {
-      ...(temDecisao ? { repasseConcluidoFiel: probabilidades.repasse >= LIMITES_DA_REVISAO.sim } : {}),
+      ...(temDecisao ? {
+        afirmouConclusaoHumana: probabilidades.conclusao >= LIMITES_DA_REVISAO.sim,
+        repasseConcluidoFiel: probabilidades.conclusao >= LIMITES_DA_REVISAO.sim &&
+          probabilidades.repasse >= LIMITES_DA_REVISAO.sim && !retorno,
+      } : {}),
       isPromise: probabilidades.comercial >= LIMITES_DA_REVISAO.sim,
       suspectPhrase: null, // O JEV classifica; não inventar uma frase que ele não devolve.
       prometeuRetornoHumano: retorno,

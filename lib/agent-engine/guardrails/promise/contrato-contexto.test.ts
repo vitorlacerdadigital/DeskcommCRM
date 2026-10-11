@@ -21,7 +21,7 @@ const contexto=():ContextoDeDecisaoHumana=>({
     provenance:'authenticated',eligible:true }],
 });
 const packageOf=(candidate='A equipe confirmou a sessão de Ana em 15/10 às 10h.')=>({ candidate,commercialEvidence:[],humanDecisionContext:contexto() });
-beforeEach(()=>{ vi.clearAllMocks();seam.call.mockResolvedValue({result:{text:JSON.stringify({isPromise:false,prometeuRetornoHumano:true,retornoSoDoAssistente:false,repasseConcluidoFiel:true})}}); });
+beforeEach(()=>{ vi.clearAllMocks();seam.call.mockResolvedValue({result:{text:JSON.stringify({isPromise:false,prometeuRetornoHumano:false,retornoSoDoAssistente:false,afirmouConclusaoHumana:true,repasseConcluidoFiel:true})}}); });
 
 describe('T03 pacote factual comum',()=>{
   it('reserva sem KB recebe a mesma projeção do JEV e do confirmador, sem IDs internos',async()=>{
@@ -91,17 +91,17 @@ describe('T02 prova interna e sinal positivo',()=>{
   });
 });
 
-describe('T04 aceite e quarta pergunta JEV',()=>{
+describe('T04 aceite e conclusão independente JEV',()=>{
   let seq=0;
   const config=(version:1|2|null)=>lerConfigDoJev({jev:{ligado:true,aceite:{em:'2026-10-10T10:00:00Z',por:'11111111-1111-4111-8111-111111111111'},contexto_revisao:version?{em:'2026-10-10T10:00:00Z',por:'11111111-1111-4111-8111-111111111111',versao:version}:null,tarefas:{revisao_resposta:{estado:'decidindo'}}}});
-  const responses={ comercial:{tipo:'noul' as const,noul:0.01},retorno:{tipo:'noul' as const,noul:0.95},so_assistente:{tipo:'noul' as const,noul:0.01},repasse:{tipo:'noul' as const,noul:0.99} };
+  const responses={ comercial:{tipo:'noul' as const,noul:0.01},retorno:{tipo:'noul' as const,noul:0.01},so_assistente:{tipo:'noul' as const,noul:0.01},repasse:{tipo:'noul' as const,noul:0.99},conclusao:{tipo:'noul' as const,noul:0.99} };
   it.each([1,null] as const)('v%s não transporta categoria ampliada',async version=>{
     const perguntar=vi.fn();const reserva=vi.fn(async()=>({isPromise:false,suspectPhrase:null,prometeuRetornoHumano:true,retornoSoDoAssistente:false,repasseConcluidoFiel:false}));
     await revisarRespostaComJev({} as pg.Pool,{}, {tenantId:`consent-${++seq}`},packageOf(),reserva,{log,lerConfig:vi.fn(async()=>config(version)),perguntar,conferirOrcamento:vi.fn()});
     expect(perguntar).not.toHaveBeenCalled();expect(reserva).toHaveBeenCalledOnce();
     expect(log.info).toHaveBeenCalledWith(expect.any(String),expect.objectContaining({motivo:'context_consent_version_insufficient'}));
   });
-  it('v2 recebe a mesma projeção, quatro observações e uma chamada de custo',async()=>{
+  it('v2 recebe a mesma projeção, cinco observações e uma chamada de custo',async()=>{
     const dbQuery=vi.fn(async(_sql:string,_values?:unknown[])=>({rows:[]}));
     const pool={query:dbQuery} as unknown as pg.Pool;
     const perguntar=vi.fn(async(_entrada:Parameters<typeof decidirNoPonto>[0])=>({ok:true as const,respostas:responses,modelo:'jev-1.13.0',uso:{tokensDeEntrada:12,tokensDeSaida:0},latenciaMs:1}));
@@ -110,10 +110,10 @@ describe('T04 aceite e quarta pergunta JEV',()=>{
     expect(v.repasseConcluidoFiel).toBe(true);expect(reserva).not.toHaveBeenCalled();
     expect(perguntar).toHaveBeenCalledOnce();expect(perguntar.mock.calls[0]?.[0]).toMatchObject({estado:pacoteFactualDaRevisao(p),versaoContextoRevisao:2});
     const values=dbQuery.mock.calls[0]?.[1] as unknown[];
-    expect(JSON.parse(String(values[5]))).toHaveLength(4);
+    expect(JSON.parse(String(values[5]))).toHaveLength(5);
     expect(JSON.stringify(values)).not.toContain(p.candidate);
   });
-  it.each([0.5,NaN,undefined])('dúvida ou ausência do quarto sinal %s exige reserva',value=>{
+  it.each([0.5,NaN,undefined])('dúvida ou ausência do sinal de fidelidade %s exige reserva',value=>{
     const r=value===undefined?{comercial:responses.comercial,retorno:responses.retorno,so_assistente:responses.so_assistente}:{...responses,repasse:{tipo:'noul' as const,noul:value}};
     expect(decidirRevisao(r,true).motivo).not.toBe('decidiu');
   });

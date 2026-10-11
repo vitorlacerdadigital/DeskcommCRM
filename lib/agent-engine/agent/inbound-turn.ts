@@ -2830,7 +2830,8 @@ async function executarTurnoDoAgente(
   let contextoHumano: ContextoDeDecisaoHumana | undefined;
   let contextoDoAtendimento: ContextoDoAtendimento | undefined;
   const lerContextoHumano = async (db: Queryable = pool, lock = false, atendimento = contextoDoAtendimento) => {
-    if (preview?.kind === 'sandbox' || !agentConfig?.casesEnabled) return undefined;
+    // Uma devolutiva já criada conserva sua fonte, mesmo se Casos foi desligado depois.
+    if (preview?.kind === 'sandbox' || (!agentConfig?.casesEnabled && !input.humanCaseEventId)) return undefined;
     try { return await carregarContextoDeDecisaoHumana(db, { tenantId,leadId,conversationId:input.conversationId }, { now:deps.clock?.() ?? new Date(),lock,canonicalRequest:atendimento?.pedido?.mensagem ?? null }); }
     catch { runLog.warn('contexto de decisões indisponível', { event:'human_decision_context_unavailable' }); return undefined; }
   };
@@ -2879,7 +2880,7 @@ async function executarTurnoDoAgente(
         ),
         // As evidências crescem entre o veto e o reenvio; o veredito de antes
         // da consulta não vale para a mesma frase depois dela.
-        () => `${evidenciasComerciais.contexto()}|${fingerprintDaFotografia(contextoHumano, contextoDoAtendimento)}|contrato_1`,
+        () => `${evidenciasComerciais.contexto()}|${fingerprintDaFotografia(contextoHumano, contextoDoAtendimento)}|contrato_2`,
       )
     : undefined;
   const semanticClassifier = classificadorMemoizado === undefined ? undefined : async (candidate: string) => {
@@ -3448,6 +3449,7 @@ async function executarTurnoDoAgente(
             casesEnabled: agentConfig?.casesEnabled ?? false,
             hasOpenCase,
             openedCaseThisTurn,
+            humanDecisionContextPresent: Boolean(input.humanCaseEventId || contextoHumano?.decisions.length),
             // Nome(s) próprio(s) que o prompt do tenant usa pra retaguarda humana (ex.:
             // "Fulano") — o mesmo vocabulário que `matchesHandoffKeyword` já usa do lado
             // do CLIENTE, agora somado ao alvo genérico do `casePromiseGate` do lado do

@@ -9,7 +9,7 @@ import type { EvidenciaComercial, CoberturaComercial } from "@/lib/agent-engine/
 import type { ContextoDaRevisao } from "@/lib/agent-engine/guardrails/promise/contexto-da-revisao";
 import { PERGUNTA_COMERCIAL_COM_EVIDENCIAS, PERGUNTA_COMERCIAL_SEM_EVIDENCIA, PERGUNTA_RETORNO_SEM_FORMATO } from "@/lib/agent-engine/guardrails/promise/instrucoes";
 import { decidirRevisao, SINAIS_DA_REVISAO, type ProbabilidadesDaRevisao, type SinalDaRevisao } from "@/lib/agent-engine/guardrails/promise/decisao-do-jev";
-import { pacoteFactualDaRevisao, INSTRUCAO_REPASSE, temDecisaoElegivel } from "@/lib/agent-engine/guardrails/promise/contrato-contexto";
+import { pacoteFactualDaRevisao, INSTRUCAO_REPASSE, precisaRevisarConclusaoHumana } from "@/lib/agent-engine/guardrails/promise/contrato-contexto";
 import type { ContextoDeDecisaoHumana } from "@/lib/agent-engine/agent/contexto-de-decisao-humana";
 import type { ContextoDoAtendimento } from "@/lib/agent-engine/agent/contexto-do-atendimento";
 import { MODELO_DO_JEV, type Pergunta, type ResultadoDaDecisao } from "./cliente";
@@ -40,11 +40,11 @@ export function pacoteParaJev(p: PacoteDaRevisao): Record<string, unknown> {
   return pacoteFactualDaRevisao(p);
 }
 
-export function perguntasDaRevisao(temEvidencias: boolean, temDecisao = false): Record<Exclude<SinalDaRevisao, 'repasse'>, Pergunta> & { repasse?: Pergunta } {
+export function perguntasDaRevisao(temEvidencias: boolean, temDecisao = false): Record<Exclude<SinalDaRevisao, 'repasse' | 'conclusao'>, Pergunta> & { repasse?: Pergunta; conclusao?: Pergunta } {
   // Cada noul recebe só sua regra, sem o formato JSON do revisor LLM.
   // As duas primeiras regras são compartilhadas, não uma política paralela.
   return {
-    ...(temDecisao ? { repasse: { tipo:"noul" as const, instrucao:INSTRUCAO_REPASSE, criterios:{ true:"A candidata inteira repassa fielmente a decisão humana elegível, sem nova promessa.", false:"Sem decisão suficiente, fora do escopo, dúvida ou promessa adicional." } } } : {}),
+    ...(temDecisao ? { conclusao: { tipo:"noul" as const, instrucao:INSTRUCAO_REPASSE, criterios:{ true:"A candidata afirma decisão/conclusão humana individual, mesmo fora do escopo ou sem fonte suficiente.", false:"Não afirma conclusão humana: fala neutra, convite, hipótese, pergunta, descrição ou citação sem endosso." } }, repasse: { tipo:"noul" as const, instrucao:INSTRUCAO_REPASSE, criterios:{ true:"A candidata inteira repassa fielmente a decisão humana elegível, sem nova promessa.", false:"Sem decisão suficiente, fora do escopo, dúvida ou promessa adicional." } } } : {}),
     comercial: {
       tipo: "noul",
       instrucao: (temEvidencias ? PERGUNTA_COMERCIAL_COM_EVIDENCIAS : PERGUNTA_COMERCIAL_SEM_EVIDENCIA) + (temDecisao ? INSTRUCAO_REPASSE : ''),
@@ -72,13 +72,14 @@ export function perguntasDaRevisao(temEvidencias: boolean, temDecisao = false): 
 }
 
 function sinalDoVeredito(v: PromiseClassification, s: SinalDaRevisao): boolean {
+  if (s === "conclusao") return v.afirmouConclusaoHumana === true;
   if (s === "repasse") return v.repasseConcluidoFiel === true;
   if (s === "comercial") return v.isPromise;
   if (s === "retorno") return v.prometeuRetornoHumano;
   return v.prometeuRetornoHumano && v.retornoSoDoAssistente;
 }
 
-/** Três verificações; UMA linha de custo. Não persistir candidata/evidências/histórico. */
+/** Verificações presentes no contrato; UMA linha de custo. Não persistir candidata/evidências/histórico. */
 async function gravarRevisao(
   pool: pg.Pool, ids: Ids, estado: "observando" | "decidindo",
   r: Extract<ResultadoDaDecisao, { ok: true }>, probabilidades: ProbabilidadesDaRevisao | null,
@@ -137,7 +138,7 @@ export async function revisarRespostaComJev(
       organizationId: ids.tenantId, ponto: "promise_semantic",
       capturarRevisao:(payload)=>capturarRevisao(pool,ids,'jev',payload),
       ...(pacote.humanDecisionContext || pacote.serviceContext || pacote.sentAntecedents?.length ? { versaoContextoRevisao:2 as const } : {}),
-      estado: pacoteParaJev(pacote), perguntas: perguntasDaRevisao(Boolean(pacote.commercialEvidence?.length), temDecisaoElegivel(pacote)),
+      estado: pacoteParaJev(pacote), perguntas: perguntasDaRevisao(Boolean(pacote.commercialEvidence?.length), precisaRevisarConclusaoHumana(pacote)),
     });
   } catch {
     r = { ok: false, motivo: "provedor_indisponivel", exigeAcao: false, defeitoNosso: false, status: null };
@@ -153,7 +154,7 @@ export async function revisarRespostaComJev(
     }
     return v;
   }
-  const calculo = decidirRevisao(r.respostas, temDecisaoElegivel(pacote));
+  const calculo = decidirRevisao(r.respostas, precisaRevisarConclusaoHumana(pacote));
   const modeloValido = r.modelo === MODELO_DO_JEV;
   if (calculo.motivo === "resposta_ilegivel" || !modeloValido) registrarFalha(alvo, "resposta_ilegivel", Date.now());
   else registrarSucesso(alvo);
