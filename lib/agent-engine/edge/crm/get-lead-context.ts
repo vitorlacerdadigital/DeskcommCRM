@@ -204,10 +204,10 @@ function paraDecisao(row: DecisionRow): UltimaDecisaoHumana | null {
 }
 
 interface HistoryRow {
-  id: string;
-  sent_via: string;
-  sent_by_user_id: string | null;
-  status: string;
+  id?: string;
+  sent_via?: string;
+  sent_by_user_id?: string | null;
+  status?: string;
   direction: 'inbound' | 'outbound';
   type: string;
   body: string | null;

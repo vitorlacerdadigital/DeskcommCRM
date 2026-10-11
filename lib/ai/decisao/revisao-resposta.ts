@@ -1,3 +1,4 @@
+import {capturarRevisao} from '@/lib/ai/diagnostico-revisao/captura';
 /** Revisor de resposta nativo: JEV primeiro, IA configurada na dúvida/falha. */
 import type pg from "pg";
 import type { LlmEdgeConfig } from "@/lib/agent-engine/edge/llm/run-model-call";
@@ -134,6 +135,7 @@ export async function revisarRespostaComJev(
   try {
     r = await (deps.perguntar ?? decidirNoPonto)({
       organizationId: ids.tenantId, ponto: "promise_semantic",
+      capturarRevisao:(payload)=>capturarRevisao(pool,ids,'jev',payload),
       ...(pacote.humanDecisionContext || pacote.serviceContext || pacote.sentAntecedents?.length ? { versaoContextoRevisao:2 as const } : {}),
       estado: pacoteParaJev(pacote), perguntas: perguntasDaRevisao(Boolean(pacote.commercialEvidence?.length), temDecisaoElegivel(pacote)),
     });

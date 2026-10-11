@@ -47,6 +47,7 @@ interface EntradaComum {
   organizationId: string;
   estado: string | Record<string, unknown> | ReadonlyArray<unknown>;
   tetoMs?: number;
+  capturarRevisao?: (pacote:unknown)=>Promise<void>;
   /** Exigência da projeção ampliada; nunca inferida do aceite do roteador. */
   versaoContextoRevisao?: 2;
 }
@@ -235,7 +236,12 @@ export async function decidirNoPonto(
     return allowlistedFetch(
       typeof input === "string" || input instanceof URL ? input : input.url,
       init,
-      { allowlist, fetchImpl: deps.fetchImpl, log: logger },
+      { allowlist, fetchImpl:async(allowedInput,allowedInit)=>{
+        if(entrada.ponto==='promise_semantic'&&entrada.capturarRevisao&&typeof allowedInit?.body==='string'){
+          try{await entrada.capturarRevisao(JSON.parse(allowedInit.body));}catch{/* Coleta não altera a revisão. */}
+        }
+        return (deps.fetchImpl??fetch)(allowedInput,allowedInit);
+      },log:logger },
     );
   };
 

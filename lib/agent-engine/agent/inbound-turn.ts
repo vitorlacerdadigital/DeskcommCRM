@@ -3669,6 +3669,8 @@ async function executarTurnoDoAgente(
             clinicalClaimVetoCount += 1;
             if (
               clinicalClaimVetoCount >= MAX_VETOS_DE_AFIRMACAO_CLINICA &&
+              !input.humanCaseEventId && // Reentrada: a falha volta ao Caso que já contém a decisão.
+
               agentConfig?.casesEnabled === true &&
               !openedCaseThisTurn &&
               !hasOpenCase

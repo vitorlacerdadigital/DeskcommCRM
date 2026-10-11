@@ -1,3 +1,4 @@
+import { avisarComunicacaoPendente } from '@/lib/escalacao/comunicacao-do-caso';
 /**
  * Handler do job `case_reply_turn` (spec 15 §4.3) — o "loop de follow-up de
  * cabeça pra baixo": em vez do TEMPO reinjetar um turno (`followup_turn`), é a
@@ -115,15 +116,21 @@ export function createCaseReplyTurnHandler(deps: InboundTurnDeps) {
       runLog.info('case_reply_turn pendente — evento ou fronteira sem prova válida', {
         action: payload.action, event:'human_case_event_unverifiable',
       });
+      try { await avisarComunicacaoPendente(pool,tenantId,payload.case_id,job.id); }
+      catch { runLog.warn('aviso de comunicação pendente não gravado',{event:'case_communication_notice_failed'}); }
       return;
     }
 
-    await runAgentTurn(deps, job, pool, ctx, {
+    let completed=false;
+    try { await runAgentTurn(deps, job, pool, ctx, {
       humanCaseEventId: caseConversation.eventId,
       channelSessionId: caseConversation.channelSessionId,
       conversationId: caseConversation.conversationId,
       buildOpening: ({ previous, leadState, context, notesIndexBlock, projeta }) =>
         buildCaseReplyOpeningMessage(action, payload.case_id, caseConversation.note, previous, leadState, context, notesIndexBlock, projeta),
-    });
+    }); completed=true; } finally {
+      try { await avisarComunicacaoPendente(pool,tenantId,payload.case_id,completed?job.id:undefined); }
+      catch { runLog.warn('aviso de comunicação pendente não gravado',{event:'case_communication_notice_failed'}); }
+    }
   };
 }

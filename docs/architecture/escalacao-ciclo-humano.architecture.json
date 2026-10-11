@@ -649,6 +649,22 @@
       "type": "service",
       "label": "contexto-do-atendimento.ts",
       "sublabel": "montador tipado, procedência, cobertura, limites, fotografia"
+    },
+    {
+      "id": "comunicacao_caso",
+      "lane": "regra",
+      "col": 9,
+      "type": "service",
+      "label": "Comunicação do Caso",
+      "sublabel": "evento → job → trace → ledger → mensagem; retry/retificação auditados"
+    },
+    {
+      "id": "captura_revisao",
+      "lane": "dados",
+      "col": 10,
+      "type": "service",
+      "label": "Diagnóstico privado opt-in",
+      "sublabel": "admin scoped; conteúdo temporário UNLOGGED; quotas/TTL/expurgo"
     }
   ],
   "edges": [
@@ -1517,6 +1533,48 @@
       "from": "modelo",
       "to": "jev",
       "label": "pedido canônico, autoria/datas e cobertura comercial no pacote comum"
+    },
+    {
+      "id": "ctx140",
+      "from": "evento",
+      "to": "comunicacao_caso",
+      "label": "decisão autenticada; fila dona das tentativas"
+    },
+    {
+      "id": "ctx141",
+      "from": "comunicacao_caso",
+      "to": "painel",
+      "label": "estado e recuperação no mesmo Caso"
+    },
+    {
+      "id": "ctx142",
+      "from": "comunicacao_caso",
+      "to": "central",
+      "label": "pendência deduplicada; fecha após envio comprovado"
+    },
+    {
+      "id": "ctx143",
+      "from": "modelo",
+      "to": "captura_revisao",
+      "label": "envelope sanitizado realmente invocado, somente opt-in"
+    },
+    {
+      "id": "ctx144",
+      "from": "jev",
+      "to": "captura_revisao",
+      "label": "JSON autorizado após guarda de egress"
+    },
+    {
+      "id": "ctx145",
+      "from": "captura_revisao",
+      "to": "jevExecucoes",
+      "label": "ativar/ler/revogar; leitura auditada; quotas e último expurgo"
+    },
+    {
+      "id": "ctx146",
+      "from": "captura_revisao",
+      "to": "central",
+      "label": "expurgo falho/atrasado interrompe coleta e abre aviso admin"
     }
   ],
   "cards": [

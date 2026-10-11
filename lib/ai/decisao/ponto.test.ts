@@ -464,3 +464,27 @@ describe("revisão de resposta revalida consentimento na busca da chave",()=>{
     expect(r).toMatchObject({ok:false,motivo:"sem_credencial"});expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
+
+
+describe('diagnóstico: JSON realmente invocado após egress/consentimento',()=>{
+  it('captura o mesmo body invocado; não captura headers nem credencial',async()=>{
+    const capture=vi.fn().mockResolvedValue(undefined),fetchImpl=vi.fn().mockResolvedValue(ok(CORPO_OK));
+    await decidirNoPonto({organizationId:'org',ponto:'promise_semantic',estado:{mensagem:'candidata sintética',evidencias:[]},perguntas:PERGUNTAS,capturarRevisao:capture},
+      {buscarChave:async()=> 'segredo-que-so-vai-no-header',fetchImpl,baseUrl:'https://jev.test',hostsPermitidos:['https://jev.test']});
+    expect(fetchImpl).toHaveBeenCalledTimes(1);expect(capture).toHaveBeenCalledTimes(1);
+    expect(capture.mock.calls[0]![0]).toEqual(JSON.parse(fetchImpl.mock.calls[0]![1].body));
+    expect(JSON.stringify(capture.mock.calls)).not.toContain('segredo-que-so-vai-no-header');
+  });
+  it('host bloqueado não fabrica captura de pacote enviado',async()=>{
+    const capture=vi.fn(),fetchImpl=vi.fn();
+    await decidirNoPonto({organizationId:'org',ponto:'promise_semantic',estado:{mensagem:'fixture',evidencias:[]},perguntas:PERGUNTAS,capturarRevisao:capture},
+      {buscarChave:async()=> 'fixture',fetchImpl,baseUrl:'https://blocked.test',hostsPermitidos:['https://allowed.test']});
+    expect(fetchImpl).not.toHaveBeenCalled();expect(capture).not.toHaveBeenCalled();
+  });
+  it('v2 revogado antes da rede não invoca captura nem fornecedor',async()=>{
+    const capture=vi.fn(),fetchImpl=vi.fn();
+    await decidirNoPonto({organizationId:'org',ponto:'promise_semantic',estado:{mensagem:'fixture',evidencias:[]},perguntas:PERGUNTAS,capturarRevisao:capture,versaoContextoRevisao:2},
+      {buscarChave:async()=> 'fixture',conferirContextoRevisao:async()=>false,fetchImpl,baseUrl:'https://jev.test',hostsPermitidos:['https://jev.test']});
+    expect(fetchImpl).not.toHaveBeenCalled();expect(capture).not.toHaveBeenCalled();
+  });
+});
